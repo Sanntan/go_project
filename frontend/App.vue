@@ -126,6 +126,47 @@
                         {{ loading ? 'Отправка...' : '🚀 Отправить транзакцию' }}
                     </button>
                 </form>
+
+                <div class="form-actions">
+                    <h3>⚡ Быстрые действия</h3>
+                    <div class="quick-actions">
+                        <div class="action-group">
+                            <label>Автогенерация транзакции для формы:</label>
+                            <div class="generate-buttons">
+                                <button 
+                                    @click="generateTransactionForForm('low')" 
+                                    class="btn-generate btn-low"
+                                    :disabled="loading"
+                                >
+                                    🟢 Низкий риск
+                                </button>
+                                <button 
+                                    @click="generateTransactionForForm('medium')" 
+                                    class="btn-generate btn-medium"
+                                    :disabled="loading"
+                                >
+                                    🟡 Средний риск
+                                </button>
+                                <button 
+                                    @click="generateTransactionForForm('high')" 
+                                    class="btn-generate btn-high"
+                                    :disabled="loading"
+                                >
+                                    🔴 Высокий риск
+                                </button>
+                            </div>
+                        </div>
+                        <div class="action-group">
+                            <button 
+                                @click="clearDatabase" 
+                                class="btn-danger"
+                                :disabled="loading"
+                            >
+                                🗑️ Очистить все транзакции
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Список транзакций -->
@@ -403,14 +444,6 @@ const submitTransaction = async () => {
             timestamp: new Date().toISOString()
         })
 
-        if (response.data.processing_id) {
-            const savedIds = JSON.parse(localStorage.getItem('transaction_ids') || '[]')
-            if (!savedIds.includes(response.data.processing_id)) {
-                savedIds.push(response.data.processing_id)
-                localStorage.setItem('transaction_ids', JSON.stringify(savedIds))
-            }
-        }
-
         showNotification('Транзакция успешно отправлена!', 'success')
         
         form.value = {
@@ -436,23 +469,22 @@ const submitTransaction = async () => {
 }
 
 const loadTransactions = async () => {
-    const savedIds = JSON.parse(localStorage.getItem('transaction_ids') || '[]')
-    
-    if (savedIds.length === 0) return
-
     try {
-        const promises = savedIds.slice(-10).map(id => 
-            axios.get(`http://localhost:8080/api/v1/transactions/${id}`)
-                .then(res => res.data)
-                .catch(() => null)
-        )
-        
-        const results = await Promise.all(promises)
-        transactions.value = results
-            .filter(tx => tx !== null)
-            .reverse()
+        const response = await axios.get('http://localhost:8080/api/v1/transactions?limit=50')
+        transactions.value = response.data.transactions || []
     } catch (error) {
         console.error('Error loading transactions:', error)
+        // Fallback на старый метод если новый не работает
+        const savedIds = JSON.parse(localStorage.getItem('transaction_ids') || '[]')
+        if (savedIds.length > 0) {
+            const promises = savedIds.slice(-10).map(id => 
+                axios.get(`http://localhost:8080/api/v1/transactions/${id}`)
+                    .then(res => res.data)
+                    .catch(() => null)
+            )
+            const results = await Promise.all(promises)
+            transactions.value = results.filter(tx => tx !== null).reverse()
+        }
     }
 }
 
@@ -623,6 +655,66 @@ const formatLogValue = (value) => {
         return JSON.stringify(value)
     }
     return value
+}
+
+const generateTransactionForForm = async (riskLevel) => {
+    loading.value = true
+    try {
+        const response = await axios.get(`http://localhost:8080/api/v1/transactions/generate?risk_level=${riskLevel}`)
+        
+        // Заполняем форму сгенерированными данными
+        form.value = {
+            transaction_id: response.data.transaction_id,
+            account_number: response.data.account_number,
+            amount: response.data.amount,
+            currency: response.data.currency,
+            transaction_type: response.data.transaction_type,
+            counterparty_account: response.data.counterparty_account || '',
+            counterparty_bank: response.data.counterparty_bank || '',
+            counterparty_country: response.data.counterparty_country || '',
+            channel: response.data.channel,
+            user_id: response.data.user_id || '',
+            branch_id: response.data.branch_id || ''
+        }
+
+        const riskNames = {
+            'low': 'низким',
+            'medium': 'средним',
+            'high': 'высоким'
+        }
+
+        showNotification(`Форма заполнена транзакцией с ${riskNames[riskLevel]} риском. Проверьте данные и нажмите "Отправить"`, 'success')
+    } catch (error) {
+        showNotification('Ошибка при генерации транзакции: ' + (error.response?.data?.error || error.message), 'error')
+    } finally {
+        loading.value = false
+    }
+}
+
+const clearDatabase = async () => {
+    if (!confirm('Вы уверены, что хотите удалить ВСЕ транзакции из SQLite и Redis? Это действие нельзя отменить.')) {
+        return
+    }
+
+    loading.value = true
+    try {
+        const response = await axios.delete('http://localhost:8080/api/v1/transactions')
+        
+        // Обновляем данные
+        transactions.value = []
+        selectedTransaction.value = null
+        
+        showNotification('Все транзакции и кэш успешно очищены', 'success')
+        
+        setTimeout(() => {
+            loadLogs()
+            loadStats()
+        }, 1000)
+    } catch (error) {
+        showNotification('Ошибка при очистке БД: ' + (error.response?.data?.error || error.message), 'error')
+    } finally {
+        loading.value = false
+    }
 }
 
 onMounted(() => {

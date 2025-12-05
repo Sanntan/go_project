@@ -109,3 +109,43 @@ func (r *Repository) GetFullTransactionByProcessingID(processingID string) (*mod
 	return &tx, nil
 }
 
+// GetAllTransactions получает все транзакции из БД
+func (r *Repository) GetAllTransactions(limit int) ([]*models.TransactionStatus, error) {
+	query := `
+		SELECT id, processing_id, transaction_id, amount, currency, status, risk_score, 
+		       risk_level, analysis_timestamp, created_at, updated_at
+		FROM transactions
+		ORDER BY created_at DESC
+		LIMIT ?
+	`
+
+	rows, err := r.db.DB.Query(query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transactions []*models.TransactionStatus
+	for rows.Next() {
+		var ts models.TransactionStatus
+		err := rows.Scan(
+			&ts.ID, &ts.ProcessingID, &ts.TransactionID, &ts.Amount, &ts.Currency, &ts.Status,
+			&ts.RiskScore, &ts.RiskLevel, &ts.AnalysisTimestamp,
+			&ts.CreatedAt, &ts.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		transactions = append(transactions, &ts)
+	}
+
+	return transactions, rows.Err()
+}
+
+// ClearAllTransactions удаляет все транзакции из БД
+func (r *Repository) ClearAllTransactions() error {
+	query := `DELETE FROM transactions`
+	_, err := r.db.DB.Exec(query)
+	return err
+}
+

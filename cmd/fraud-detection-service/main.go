@@ -93,12 +93,18 @@ func main() {
 	// Настройка REST API для проверки статуса (опционально)
 	router := gin.Default()
 	
-	// CORS middleware
+	// CORS middleware - применяем ко всем маршрутам
 	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+		
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -136,6 +142,33 @@ func main() {
 	router.GET("/api/v1/stats", func(c *gin.Context) {
 		stats := logger.GetStats()
 		c.JSON(http.StatusOK, stats)
+	})
+
+	// Clear database endpoint (тоже доступен через fraud-detection для синхронизации)
+	api.DELETE("/transactions", func(c *gin.Context) {
+		if err := repo.ClearAllTransactions(); err != nil {
+			log.Printf("Error clearing transactions: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear transactions"})
+			return
+		}
+		
+		// Очищаем Redis данные транзакций
+		if err := redisClient.ClearTransactionData(); err != nil {
+			log.Printf("Warning: Failed to clear Redis data: %v", err)
+		} else {
+			logger.LogEvent(logger.EventRedisSaved, "fraud-detection-service", "redis", map[string]interface{}{
+				"action": "transaction_data_cleared",
+			})
+		}
+		
+		logger.LogEvent(logger.EventDBUpdated, "fraud-detection-service", "sqlite", map[string]interface{}{
+			"action": "database_cleared",
+		})
+		
+		c.JSON(http.StatusOK, gin.H{
+			"message": "All transactions and cache cleared successfully",
+			"clear_storage": true,
+		})
 	})
 
 	// Запуск сервера

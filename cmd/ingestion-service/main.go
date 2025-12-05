@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"bank-aml-system/internal/config"
 	"bank-aml-system/internal/database"
+	"bank-aml-system/internal/generator"
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/logger"
 	"bank-aml-system/internal/models"
@@ -52,12 +53,18 @@ func main() {
 	// Настройка Gin router
 	router := gin.Default()
 	
-	// CORS middleware
+	// CORS middleware - применяем ко всем маршрутам
 	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin == "" {
+			origin = "*"
+		}
+		
+		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -73,6 +80,7 @@ func main() {
 	api := router.Group("/api/v1")
 	{
 		api.POST("/transactions", service.handleTransaction)
+		api.GET("/transactions", service.getAllTransactions)
 		api.GET("/transactions/:processing_id", service.getTransactionStatus)
 	}
 
@@ -97,6 +105,57 @@ func main() {
 	router.GET("/api/v1/stats", func(c *gin.Context) {
 		stats := logger.GetStats()
 		c.JSON(http.StatusOK, stats)
+	})
+
+	// Clear database endpoint
+	api.DELETE("/transactions", func(c *gin.Context) {
+		if err := repo.ClearAllTransactions(); err != nil {
+			log.Printf("Error clearing transactions: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear transactions"})
+			return
+		}
+		
+		logger.LogEvent(logger.EventDBUpdated, "ingestion-service", "sqlite", map[string]interface{}{
+			"action": "database_cleared",
+		})
+		
+		// Очищаем localStorage на фронтенде через ответ
+		c.JSON(http.StatusOK, gin.H{
+			"message": "All transactions cleared successfully",
+			"clear_storage": true,
+		})
+	})
+
+	// Generate single transaction for form (returns transaction data, doesn't save)
+	api.GET("/transactions/generate", func(c *gin.Context) {
+		riskLevel := c.Query("risk_level")
+		if riskLevel == "" {
+			riskLevel = "low"
+		}
+		
+		if riskLevel != "low" && riskLevel != "medium" && riskLevel != "high" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid risk_level. Must be low, medium, or high"})
+			return
+		}
+
+		gen := generator.NewTransactionGenerator()
+		tx := gen.GenerateTransaction(riskLevel)
+
+		// Возвращаем данные для заполнения формы
+		c.JSON(http.StatusOK, gin.H{
+			"transaction_id":       tx.TransactionID,
+			"account_number":       tx.AccountNumber,
+			"amount":               tx.Amount,
+			"currency":             tx.Currency,
+			"transaction_type":    tx.TransactionType,
+			"counterparty_account": tx.CounterpartyAccount,
+			"counterparty_bank":    tx.CounterpartyBank,
+			"counterparty_country": tx.CounterpartyCountry,
+			"channel":              tx.Channel,
+			"user_id":              tx.UserID,
+			"branch_id":            tx.BranchID,
+			"risk_level":           riskLevel,
+		})
 	})
 
 	// Запуск сервера
@@ -198,6 +257,38 @@ func (s *IngestionService) handleTransaction(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, response)
+}
+
+func (s *IngestionService) getAllTransactions(c *gin.Context) {
+	limit := 100
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 && parsed <= 500 {
+			limit = parsed
+		}
+	}
+
+	transactions, err := s.repo.GetAllTransactions(limit)
+	if err != nil {
+		log.Printf("Error getting all transactions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get transactions"})
+		return
+	}
+
+	responses := make([]models.TransactionStatusResponse, 0, len(transactions))
+	for _, tx := range transactions {
+		responses = append(responses, models.TransactionStatusResponse{
+			ProcessingID:      tx.ProcessingID,
+			TransactionID:     tx.TransactionID,
+			Amount:            tx.Amount,
+			Currency:          tx.Currency,
+			Status:            tx.Status,
+			RiskScore:         tx.RiskScore,
+			RiskLevel:         tx.RiskLevel,
+			AnalysisTimestamp: tx.AnalysisTimestamp,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"transactions": responses})
 }
 
 func (s *IngestionService) getTransactionStatus(c *gin.Context) {
