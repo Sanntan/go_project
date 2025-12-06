@@ -127,6 +127,13 @@ func (c *Client) InitializeBlacklists() error {
 	return nil
 }
 
+// AddToBlacklist добавляет счет в черный список (используется для тестирования и администрирования)
+func (c *Client) AddToBlacklist(accountNumber string) error {
+	ctx := context.Background()
+	key := "blacklist:accounts"
+	return c.rdb.SAdd(ctx, key, accountNumber).Err()
+}
+
 // ClearTransactionData очищает все данные транзакций из Redis (но сохраняет черные списки)
 func (c *Client) ClearTransactionData() error {
 	ctx := context.Background()
