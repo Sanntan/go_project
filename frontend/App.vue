@@ -131,30 +131,13 @@
                     <h3>⚡ Быстрые действия</h3>
                     <div class="quick-actions">
                         <div class="action-group">
-                            <label>Автогенерация транзакции для формы:</label>
-                            <div class="generate-buttons">
-                                <button 
-                                    @click="generateTransactionForForm('low')" 
-                                    class="btn-generate btn-low"
-                                    :disabled="loading"
-                                >
-                                    🟢 Низкий риск
-                                </button>
-                                <button 
-                                    @click="generateTransactionForForm('medium')" 
-                                    class="btn-generate btn-medium"
-                                    :disabled="loading"
-                                >
-                                    🟡 Средний риск
-                                </button>
-                                <button 
-                                    @click="generateTransactionForForm('high')" 
-                                    class="btn-generate btn-high"
-                                    :disabled="loading"
-                                >
-                                    🔴 Высокий риск
-                                </button>
-                            </div>
+                            <button 
+                                @click="generateRandomTransaction" 
+                                class="btn-generate btn-random"
+                                :disabled="loading"
+                            >
+                                🎲 Автогенерация случайных данных
+                            </button>
                         </div>
                         <div class="action-group">
                             <button 
@@ -543,11 +526,22 @@ const getRiskLevelText = (level) => {
 
 const getFlagText = (flag) => {
     const flagMap = {
+        'very_large_amount': 'Очень крупная сумма',
         'large_amount': 'Крупная сумма',
+        'medium_amount': 'Средняя сумма',
         'offshore_counterparty': 'Офшорный контрагент',
         'unusual_time': 'Необычное время',
+        'late_hours': 'Поздние часы',
         'high_frequency': 'Высокая частота',
-        'blacklist': 'Черный список'
+        'medium_frequency': 'Средняя частота',
+        'blacklisted_counterparty': 'Черный список',
+        'international_transfer': 'Международный перевод',
+        'withdrawal': 'Снятие средств',
+        'large_atm_transaction': 'Крупная транзакция через банкомат',
+        'atm_transaction': 'Транзакция через банкомат',
+        'large_mobile_transaction': 'Крупная мобильная транзакция',
+        'high_risk_currency': 'Высокорискованная валюта',
+        'round_amount': 'Круглая сумма'
     }
     return flagMap[flag] || flag
 }
@@ -657,10 +651,10 @@ const formatLogValue = (value) => {
     return value
 }
 
-const generateTransactionForForm = async (riskLevel) => {
+const generateRandomTransaction = async () => {
     loading.value = true
     try {
-        const response = await axios.get(`http://localhost:8080/api/v1/transactions/generate?risk_level=${riskLevel}`)
+        const response = await axios.get('http://localhost:8080/api/v1/transactions/generate')
         
         // Заполняем форму сгенерированными данными
         form.value = {
@@ -677,13 +671,7 @@ const generateTransactionForForm = async (riskLevel) => {
             branch_id: response.data.branch_id || ''
         }
 
-        const riskNames = {
-            'low': 'низким',
-            'medium': 'средним',
-            'high': 'высоким'
-        }
-
-        showNotification(`Форма заполнена транзакцией с ${riskNames[riskLevel]} риском. Проверьте данные и нажмите "Отправить"`, 'success')
+        showNotification('Форма заполнена случайными данными. Проверьте данные и нажмите "Отправить"', 'success')
     } catch (error) {
         showNotification('Ошибка при генерации транзакции: ' + (error.response?.data?.error || error.message), 'error')
     } finally {

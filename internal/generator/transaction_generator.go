@@ -55,6 +55,64 @@ func (g *TransactionGenerator) GenerateTransaction(riskLevel string) *models.Tra
 	return tx
 }
 
+// GenerateRandomTransaction генерирует полностью случайную транзакцию без привязки к уровню риска
+func (g *TransactionGenerator) GenerateRandomTransaction() *models.Transaction {
+	// Генерируем уникальный ID на основе времени и случайного числа
+	baseID := time.Now().UnixNano() + g.rand.Int63n(1000000000)
+	
+	// Генерируем уникальный номер счета
+	accountSuffix := 1000000000 + g.rand.Int63n(8999999999)
+	
+	// Добавляем небольшую случайную задержку к времени для уникальности
+	timeOffset := time.Duration(g.rand.Intn(1000)) * time.Millisecond
+	
+	tx := &models.Transaction{
+		TransactionID: fmt.Sprintf("TXN-AUTO-%d", baseID),
+		AccountNumber:  fmt.Sprintf("ACC%d", accountSuffix),
+		UserID:        fmt.Sprintf("user%d", g.rand.Intn(100000)),
+		BranchID:      fmt.Sprintf("branch%d", g.rand.Intn(1000)),
+		Timestamp:     time.Now().Add(timeOffset),
+	}
+
+	// Случайная валюта
+	currencies := []string{"RUB", "USD", "EUR", "GBP", "CHF", "JPY"}
+	tx.Currency = currencies[g.rand.Intn(len(currencies))]
+
+	// Случайный тип транзакции
+	transactionTypes := []string{"transfer", "international_transfer", "withdrawal", "deposit", "payment"}
+	tx.TransactionType = transactionTypes[g.rand.Intn(len(transactionTypes))]
+
+	// Случайный канал
+	channels := []string{"online", "mobile", "branch", "atm"}
+	tx.Channel = channels[g.rand.Intn(len(channels))]
+
+	// Случайная сумма (от 1000 до 10 млн)
+	tx.Amount = g.roundToTwoDecimals(1000.0 + g.rand.Float64()*9999000.0)
+
+	// Случайная страна контрагента (может быть офшорной или обычной)
+	if g.rand.Float64() < 0.3 { // 30% вероятность офшорной страны
+		tx.CounterpartyCountry = g.getRandomOffshoreCountry()
+		tx.CounterpartyBank = g.getRandomOffshoreBank()
+	} else {
+		tx.CounterpartyCountry = g.getRandomSafeCountry()
+		tx.CounterpartyBank = g.getRandomBank()
+	}
+
+	// Случайный счет контрагента
+	tx.CounterpartyAccount = fmt.Sprintf("ACC%d", 2000000000+g.rand.Int63n(9999999999))
+
+	// Случайное время (может быть ночным)
+	if g.rand.Float64() < 0.2 { // 20% вероятность ночного времени
+		hour := g.rand.Intn(6) // 00:00 - 06:00
+		tx.Timestamp = time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), hour, g.rand.Intn(60), 0, 0, time.Local)
+	} else {
+		hour := 6 + g.rand.Intn(18) // 06:00 - 24:00
+		tx.Timestamp = time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), hour, g.rand.Intn(60), 0, 0, time.Local)
+	}
+
+	return tx
+}
+
 // generateLowRisk генерирует транзакцию с низким риском (0-30 баллов)
 func (g *TransactionGenerator) generateLowRisk(tx *models.Transaction) {
 	// Небольшая сумма (до 500k RUB) - 0 баллов

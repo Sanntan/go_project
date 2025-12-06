@@ -8,8 +8,10 @@ import (
 )
 
 const (
-	LargeAmountThreshold = 1000000.0 // 1 млн руб
-	HighFrequencyThreshold = 10      // 10 транзакций в день
+	LargeAmountThreshold     = 1000000.0 // 1 млн руб
+	VeryLargeAmountThreshold = 5000000.0 // 5 млн руб
+	MediumAmountThreshold    = 500000.0  // 500 тыс руб
+	HighFrequencyThreshold   = 10        // 10 транзакций в день
 )
 
 type RiskAnalyzer struct {
@@ -27,10 +29,19 @@ func (r *RiskAnalyzer) AnalyzeTransaction(tx *models.Transaction) (*models.RiskA
 	score := 0
 	var flags []string
 
-	// 1. Проверка крупной суммы
-	if tx.Amount > LargeAmountThreshold {
+	// 1. Проверка суммы транзакции (несколько уровней)
+	if tx.Amount >= VeryLargeAmountThreshold {
+		// Очень крупная сумма (>= 5 млн)
+		score += 50
+		flags = append(flags, "very_large_amount")
+	} else if tx.Amount >= LargeAmountThreshold {
+		// Крупная сумма (>= 1 млн, < 5 млн)
 		score += 30
 		flags = append(flags, "large_amount")
+	} else if tx.Amount >= MediumAmountThreshold {
+		// Средняя сумма (>= 500 тыс, < 1 млн)
+		score += 10
+		flags = append(flags, "medium_amount")
 	}
 
 	// 2. Проверка офшорной юрисдикции
@@ -57,11 +68,16 @@ func (r *RiskAnalyzer) AnalyzeTransaction(tx *models.Transaction) (*models.RiskA
 		}
 	}
 
-	// 4. Проверка необычного времени (ночные операции: 00:00 - 06:00)
+	// 4. Проверка необычного времени
 	hour := tx.Timestamp.Hour()
 	if hour >= 0 && hour < 6 {
+		// Ночное время (00:00 - 06:00)
 		score += 15
 		flags = append(flags, "unusual_time")
+	} else if hour >= 22 || hour < 8 {
+		// Поздний вечер/раннее утро (22:00 - 08:00)
+		score += 8
+		flags = append(flags, "late_hours")
 	}
 
 	// 5. Проверка частоты операций
@@ -72,6 +88,58 @@ func (r *RiskAnalyzer) AnalyzeTransaction(tx *models.Transaction) (*models.RiskA
 	if dailyCount >= HighFrequencyThreshold {
 		score += 25
 		flags = append(flags, "high_frequency")
+	} else if dailyCount >= 5 {
+		// Средняя частота (5-9 транзакций в день)
+		score += 10
+		flags = append(flags, "medium_frequency")
+	}
+
+	// 6. Проверка типа транзакции
+	if tx.TransactionType == "international_transfer" {
+		score += 20
+		flags = append(flags, "international_transfer")
+	} else if tx.TransactionType == "withdrawal" {
+		score += 5
+		flags = append(flags, "withdrawal")
+	}
+
+	// 7. Проверка канала транзакции
+	if tx.Channel == "atm" {
+		// Банкоматы могут быть более рискованными для крупных сумм
+		if tx.Amount >= MediumAmountThreshold {
+			score += 12
+			flags = append(flags, "large_atm_transaction")
+		} else {
+			score += 5
+			flags = append(flags, "atm_transaction")
+		}
+	} else if tx.Channel == "mobile" && tx.Amount >= LargeAmountThreshold {
+		// Крупные транзакции через мобильное приложение
+		score += 8
+		flags = append(flags, "large_mobile_transaction")
+	}
+
+	// 8. Проверка валюты (некоторые валюты могут быть более рискованными)
+	highRiskCurrencies := map[string]int{
+		"CHF": 8, // Швейцарский франк
+		"JPY": 5, // Японская йена
+	}
+	if points, exists := highRiskCurrencies[tx.Currency]; exists {
+		score += points
+		flags = append(flags, "high_risk_currency")
+	}
+
+	// 9. Проверка на круглые суммы (может указывать на подозрительную активность)
+	if tx.Amount > 0 {
+		// Проверяем, является ли сумма "круглой" (кратной 10000, 100000, 1000000)
+		amount := tx.Amount
+		// Используем остаток от деления с учетом float64
+		if (amount >= 10000 && amount < 100000 && int64(amount)%10000 == 0) ||
+			(amount >= 100000 && amount < 1000000 && int64(amount)%100000 == 0) ||
+			(amount >= 1000000 && int64(amount)%1000000 == 0) {
+			score += 5
+			flags = append(flags, "round_amount")
+		}
 	}
 
 	// Увеличиваем счетчик транзакций по счету
@@ -81,16 +149,16 @@ func (r *RiskAnalyzer) AnalyzeTransaction(tx *models.Transaction) (*models.RiskA
 
 	// Определяем уровень риска
 	riskLevel := calculateRiskLevel(score)
-	
+
 	// Определяем рекомендацию
 	recommendation := getActionRecommendation(score)
 
 	return &models.RiskAnalysis{
-		RiskScore:     score,
-		RiskLevel:     riskLevel,
-		Flags:         flags,
+		RiskScore:      score,
+		RiskLevel:      riskLevel,
+		Flags:          flags,
 		Recommendation: recommendation,
-		AnalyzedAt:    time.Now(),
+		AnalyzedAt:     time.Now(),
 	}, nil
 }
 
@@ -127,4 +195,3 @@ func isOffshoreCountry(countryCode string) bool {
 	}
 	return offshoreCountries[countryCode]
 }
-

@@ -126,20 +126,10 @@ func main() {
 		})
 	})
 
-	// Generate single transaction for form (returns transaction data, doesn't save)
+	// Generate single random transaction for form (returns transaction data, doesn't save)
 	api.GET("/transactions/generate", func(c *gin.Context) {
-		riskLevel := c.Query("risk_level")
-		if riskLevel == "" {
-			riskLevel = "low"
-		}
-		
-		if riskLevel != "low" && riskLevel != "medium" && riskLevel != "high" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid risk_level. Must be low, medium, or high"})
-			return
-		}
-
 		gen := generator.NewTransactionGenerator()
-		tx := gen.GenerateTransaction(riskLevel)
+		tx := gen.GenerateRandomTransaction()
 
 		// Возвращаем данные для заполнения формы
 		c.JSON(http.StatusOK, gin.H{
@@ -154,7 +144,6 @@ func main() {
 			"channel":              tx.Channel,
 			"user_id":              tx.UserID,
 			"branch_id":            tx.BranchID,
-			"risk_level":           riskLevel,
 		})
 	})
 
