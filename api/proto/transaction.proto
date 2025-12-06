@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package transaction;
+
+option go_package = "bank-aml-system/api/proto;transaction";
+
+// Transaction Service для анализа транзакций через gRPC
+service TransactionService {
+  // Анализ транзакции на предмет рисков
+  rpc AnalyzeTransaction(AnalyzeTransactionRequest) returns (AnalyzeTransactionResponse);
+  
+  // Получение статуса транзакции
+  rpc GetTransactionStatus(GetTransactionStatusRequest) returns (GetTransactionStatusResponse);
+  
+  // Генерация случайной транзакции
+  rpc GenerateRandomTransaction(GenerateRandomTransactionRequest) returns (GenerateRandomTransactionResponse);
+}
+
+// Запрос на анализ транзакции
+message AnalyzeTransactionRequest {
+  string transaction_id = 1;
+  string account_number = 2;
+  double amount = 3;
+  string currency = 4;
+  string transaction_type = 5;
+  string counterparty_account = 6;
+  string counterparty_bank = 7;
+  string counterparty_country = 8;
+  string channel = 9;
+  string user_id = 10;
+  string branch_id = 11;
+  string timestamp = 12;
+}
+
+// Ответ на анализ транзакции
+message AnalyzeTransactionResponse {
+  string processing_id = 1;
+  int32 risk_score = 2;
+  string risk_level = 3;
+  repeated string flags = 4;
+  string recommendation = 5;
+  string analyzed_at = 6;
+  string status = 7;
+}
+
+// Запрос на получение статуса транзакции
+message GetTransactionStatusRequest {
+  string processing_id = 1;
+}
+
+// Ответ со статусом транзакции
+message GetTransactionStatusResponse {
+  string processing_id = 1;
+  string transaction_id = 2;
+  string status = 3;
+  int32 risk_score = 4;
+  string risk_level = 5;
+  repeated string flags = 6;
+  string analysis_timestamp = 7;
+}
+
+// Запрос на генерацию случайной транзакции
+message GenerateRandomTransactionRequest {
+  // Пустой запрос
+}
+
+// Ответ с сгенерированной транзакцией
+message GenerateRandomTransactionResponse {
+  string transaction_id = 1;
+  string account_number = 2;
+  double amount = 3;
+  string currency = 4;
+  string transaction_type = 5;
+  string counterparty_account = 6;
+  string counterparty_bank = 7;
+  string counterparty_country = 8;
+  string channel = 9;
+  string user_id = 10;
+  string branch_id = 11;
+}
+

@@ -13,13 +13,35 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	
+	_ "bank-aml-system/docs" // Swagger docs
 	"bank-aml-system/internal/config"
 	"bank-aml-system/internal/database"
 	"bank-aml-system/internal/generator"
+	"bank-aml-system/internal/grpc"
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/logger"
 	"bank-aml-system/internal/models"
+	"bank-aml-system/internal/redis"
+	"bank-aml-system/internal/fraud"
 )
+
+// @title Bank AML System API
+// @version 1.0
+// @description Система противодействия отмыванию денег и мошенничеству
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.email support@bank-aml.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http
 
 type IngestionService struct {
 	repo     *database.Repository
@@ -44,6 +66,24 @@ func main() {
 		log.Fatalf("Failed to create Kafka producer: %v", err)
 	}
 	defer producer.Close()
+
+	// Инициализация Redis для gRPC сервера
+	redisClient, err := redis.NewClient(cfg)
+	if err != nil {
+		log.Printf("Warning: Failed to connect to Redis (gRPC will have limited functionality): %v", err)
+	} else {
+		defer redisClient.Close()
+		// Инициализация черных списков
+		if err := redisClient.InitializeBlacklists(); err != nil {
+			log.Printf("Warning: Failed to initialize blacklists: %v", err)
+		}
+	}
+
+	// Инициализация анализатора рисков для gRPC
+	var riskAnalyzer *fraud.RiskAnalyzer
+	if redisClient != nil {
+		riskAnalyzer = fraud.NewRiskAnalyzer(redisClient)
+	}
 
 	service := &IngestionService{
 		repo:     repo,
@@ -75,6 +115,9 @@ func main() {
 	})
 	
 	router.Use(gin.Logger(), gin.Recovery())
+
+	// Swagger UI
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger/doc.json")))
 
 	// API endpoints
 	api := router.Group("/api/v1")
@@ -127,6 +170,13 @@ func main() {
 	})
 
 	// Generate single random transaction for form (returns transaction data, doesn't save)
+	// @Summary Генерация случайной транзакции
+	// @Description Генерирует случайные данные транзакции для заполнения формы
+	// @Tags transactions
+	// @Accept json
+	// @Produce json
+	// @Success 200 {object} map[string]interface{}
+	// @Router /transactions/generate [get]
 	api.GET("/transactions/generate", func(c *gin.Context) {
 		gen := generator.NewTransactionGenerator()
 		tx := gen.GenerateRandomTransaction()
@@ -160,6 +210,18 @@ func main() {
 		}
 	}()
 
+	// Запуск gRPC сервера в отдельной горутине
+	if redisClient != nil && riskAnalyzer != nil {
+		go func() {
+			grpcServer := grpc.NewTransactionGRPCServer(repo, producer, redisClient, riskAnalyzer)
+			if err := grpc.StartGRPCServer(cfg, grpcServer); err != nil {
+				log.Fatalf("Failed to start gRPC server: %v", err)
+			}
+		}()
+	} else {
+		log.Println("Warning: gRPC server not started (Redis not available)")
+	}
+
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -176,6 +238,17 @@ func main() {
 	log.Println("Server exited")
 }
 
+// handleTransaction обрабатывает POST запрос на создание транзакции
+// @Summary Отправить транзакцию на анализ
+// @Description Принимает транзакцию и отправляет её на анализ рисков
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Param transaction body models.ProcessingRequest true "Данные транзакции"
+// @Success 201 {object} models.ProcessingResponse
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /transactions [post]
 func (s *IngestionService) handleTransaction(c *gin.Context) {
 	var req models.ProcessingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -248,6 +321,16 @@ func (s *IngestionService) handleTransaction(c *gin.Context) {
 	c.JSON(http.StatusCreated, response)
 }
 
+// getAllTransactions возвращает список всех транзакций
+// @Summary Получить список транзакций
+// @Description Возвращает список всех транзакций с пагинацией
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Param limit query int false "Лимит результатов (максимум 500)" default(100)
+// @Success 200 {object} map[string][]models.TransactionStatusResponse
+// @Failure 500 {object} map[string]string
+// @Router /transactions [get]
 func (s *IngestionService) getAllTransactions(c *gin.Context) {
 	limit := 100
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -280,6 +363,17 @@ func (s *IngestionService) getAllTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"transactions": responses})
 }
 
+// getTransactionStatus возвращает статус транзакции по processing_id
+// @Summary Получить статус транзакции
+// @Description Возвращает детальную информацию о транзакции и её анализе
+// @Tags transactions
+// @Accept json
+// @Produce json
+// @Param processing_id path string true "ID обработки транзакции"
+// @Success 200 {object} models.TransactionStatusResponse
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /transactions/{processing_id} [get]
 func (s *IngestionService) getTransactionStatus(c *gin.Context) {
 	processingID := c.Param("processing_id")
 

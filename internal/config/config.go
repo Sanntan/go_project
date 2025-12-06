@@ -35,6 +35,7 @@ type KafkaConfig struct {
 type ServerConfig struct {
 	IngestionPort      int
 	FraudDetectionPort int
+	GRPCPort          int
 }
 
 func Load() *Config {
@@ -61,6 +62,7 @@ func Load() *Config {
 		Server: ServerConfig{
 			IngestionPort:      getEnvAsInt("INGESTION_SERVICE_PORT", 8080),
 			FraudDetectionPort: getEnvAsInt("FRAUD_DETECTION_SERVICE_PORT", 8081),
+			GRPCPort:          getEnvAsInt("GRPC_PORT", 50051),
 		},
 	}
 }

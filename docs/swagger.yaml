@@ -1,0 +1,180 @@
+basePath: /api/v1
+definitions:
+  models.ProcessingRequest:
+    properties:
+      account_number:
+        type: string
+      amount:
+        type: number
+      branch_id:
+        type: string
+      channel:
+        type: string
+      counterparty_account:
+        type: string
+      counterparty_bank:
+        type: string
+      counterparty_country:
+        type: string
+      currency:
+        type: string
+      timestamp:
+        type: string
+      transaction_id:
+        type: string
+      transaction_type:
+        type: string
+      user_id:
+        type: string
+    required:
+    - account_number
+    - amount
+    - currency
+    - transaction_id
+    - transaction_type
+    type: object
+  models.ProcessingResponse:
+    properties:
+      message:
+        type: string
+      processing_id:
+        type: string
+      status:
+        type: string
+    type: object
+  models.TransactionStatusResponse:
+    properties:
+      amount:
+        type: number
+      analysis_timestamp:
+        type: string
+      currency:
+        type: string
+      flags:
+        items:
+          type: string
+        type: array
+      processing_id:
+        type: string
+      risk_level:
+        type: string
+      risk_score:
+        type: integer
+      status:
+        type: string
+      transaction_id:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@bank-aml.com
+    name: API Support
+  description: Система противодействия отмыванию денег и мошенничеству
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Bank AML System API
+  version: "1.0"
+paths:
+  /transactions:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех транзакций с пагинацией
+      parameters:
+      - default: 100
+        description: Лимит результатов (максимум 500)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              items:
+                $ref: '#/definitions/models.TransactionStatusResponse'
+              type: array
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить список транзакций
+      tags:
+      - transactions
+    post:
+      consumes:
+      - application/json
+      description: Принимает транзакцию и отправляет её на анализ рисков
+      parameters:
+      - description: Данные транзакции
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/models.ProcessingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.ProcessingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Отправить транзакцию на анализ
+      tags:
+      - transactions
+  /transactions/{processing_id}:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает детальную информацию о транзакции и её анализе
+      parameters:
+      - description: ID обработки транзакции
+        in: path
+        name: processing_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TransactionStatusResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить статус транзакции
+      tags:
+      - transactions
+schemes:
+- http
+swagger: "2.0"
