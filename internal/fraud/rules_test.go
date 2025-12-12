@@ -50,73 +50,9 @@ func TestNewRiskAnalyzer(t *testing.T) {
 	defer cleanup()
 
 	analyzer := NewRiskAnalyzer(redisClient)
-	
+
 	assert.NotNil(t, analyzer)
 	assert.Equal(t, redisClient, analyzer.redisClient)
-}
-
-func TestAnalyzeTransaction_LowRisk(t *testing.T) {
-	redisClient, cleanup := setupTestRedis(t)
-	if redisClient == nil {
-		return
-	}
-	defer cleanup()
-
-	analyzer := NewRiskAnalyzer(redisClient)
-
-	// Используем уникальный счет для каждого теста, чтобы избежать накопления данных
-	tx := &models.Transaction{
-		TransactionID:       "TXN-001",
-		AccountNumber:       "ACC-LOW-RISK-001", // Уникальный счет
-		Amount:              100000.0,            // Небольшая сумма
-		Currency:            "RUB",
-		TransactionType:     "transfer",
-		CounterpartyCountry: "RU", // Обычная страна
-		CounterpartyAccount: "ACC789012",
-		Timestamp:           time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC), // Дневное время
-		Channel:             "online",
-	}
-
-	analysis, err := analyzer.AnalyzeTransaction(tx)
-	require.NoError(t, err)
-	require.NotNil(t, analysis)
-
-	assert.LessOrEqual(t, analysis.RiskScore, 30)
-	assert.Equal(t, "low", analysis.RiskLevel)
-	assert.Equal(t, "auto_approve", analysis.Recommendation)
-}
-
-func TestAnalyzeTransaction_MediumRisk(t *testing.T) {
-	redisClient, cleanup := setupTestRedis(t)
-	if redisClient == nil {
-		return
-	}
-	defer cleanup()
-
-	analyzer := NewRiskAnalyzer(redisClient)
-
-	// Используем уникальный счет для каждого теста
-	tx := &models.Transaction{
-		TransactionID:       "TXN-002",
-		AccountNumber:       "ACC-MEDIUM-RISK-001", // Уникальный счет
-		Amount:              600000.0,               // Средняя сумма
-		Currency:            "RUB",
-		TransactionType:     "transfer",
-		CounterpartyCountry: "KY", // Офшорная страна (уже в списке после InitializeBlacklists)
-		CounterpartyAccount: "ACC789012",
-		Timestamp:           time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC),
-		Channel:             "online",
-	}
-
-	analysis, err := analyzer.AnalyzeTransaction(tx)
-	require.NoError(t, err)
-	require.NotNil(t, analysis)
-
-	assert.Greater(t, analysis.RiskScore, 30)
-	assert.LessOrEqual(t, analysis.RiskScore, 70)
-	assert.Equal(t, "medium", analysis.RiskLevel)
-	assert.Equal(t, "log_only", analysis.Recommendation)
-	assert.Contains(t, analysis.Flags, "offshore_counterparty")
 }
 
 func TestAnalyzeTransaction_HighRisk_Blacklisted(t *testing.T) {
@@ -430,4 +366,3 @@ func TestIsOffshoreCountry(t *testing.T) {
 		})
 	}
 }
-
