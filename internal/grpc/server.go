@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"bank-aml-system/internal/config"
+	"bank-aml-system/config"
 	"bank-aml-system/internal/fraud"
 	"bank-aml-system/internal/generator"
 	"bank-aml-system/internal/kafka"

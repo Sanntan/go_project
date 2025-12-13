@@ -1,5 +1,5 @@
 package main
 
-import "bank-aml-system/internal/bootstrap"
+import "bank-aml-system/internal/bootstrap/ingestion"
 
-func main() { bootstrap.StartIngestionService() }
+func main() { ingestion.StartIngestionService() }

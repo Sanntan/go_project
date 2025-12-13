@@ -12,7 +12,7 @@ type RiskAnalyzerImpl struct {
 }
 
 // NewRiskAnalyzer создает новый анализатор рисков
-func NewRiskAnalyzer(redisClient *redis.Client) RiskAnalyzer {
+func NewRiskAnalyzer(redisClient redis.ClientInterface) RiskAnalyzer {
 	analyzer := fraud.NewRiskAnalyzer(redisClient)
 	return &RiskAnalyzerImpl{analyzer: analyzer}
 }

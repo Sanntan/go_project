@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"bank-aml-system/internal/config"
+	"bank-aml-system/config"
 
 	redisv9 "github.com/redis/go-redis/v9"
 )

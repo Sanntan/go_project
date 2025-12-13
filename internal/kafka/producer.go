@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"bank-aml-system/internal/config"
+	"bank-aml-system/config"
 	"bank-aml-system/internal/models"
 )
 

@@ -97,6 +97,17 @@ func TestTransactionGenerator_GenerateTransaction_InvalidRisk(t *testing.T) {
 	assert.Less(t, tx.Amount, 500000.0)
 }
 
+func TestTransactionGenerator_GenerateTransaction_EmptyRisk(t *testing.T) {
+	gen := NewTransactionGenerator()
+
+	// Пустая строка должна генерировать low risk транзакцию
+	tx := gen.GenerateTransaction("")
+	require.NotNil(t, tx)
+
+	assert.NotEmpty(t, tx.TransactionID)
+	assert.Less(t, tx.Amount, 500000.0)
+}
+
 func TestTransactionGenerator_GenerateRandomTransaction(t *testing.T) {
 	gen := NewTransactionGenerator()
 
@@ -138,11 +149,13 @@ func TestTransactionGenerator_RoundToTwoDecimals(t *testing.T) {
 		input    float64
 		expected float64
 	}{
-		{"Simple", 123.456, 123.46},
-		{"Simple", 123.454, 123.45},
-		{"Large", 1000000.123, 1000000.12},
-		{"Small", 0.001, 0.00},
+		{"Simple round up", 123.456, 123.46},
+		{"Simple round down", 123.454, 123.45},
+		{"Large number", 1000000.123, 1000000.12},
+		{"Small number", 0.001, 0.00},
 		{"Integer", 100.0, 100.0},
+		{"Zero", 0.0, 0.0},
+		{"Negative", -123.456, -123.46},
 	}
 
 	for _, tt := range tests {
@@ -255,3 +268,67 @@ func TestTransactionGenerator_CurrencyAndType(t *testing.T) {
 	assert.Greater(t, len(types), 1, "Should generate different transaction types")
 }
 
+// Тесты на граничные случаи и ошибки
+
+func TestTransactionGenerator_GenerateTransaction_ZeroAmount(t *testing.T) {
+	gen := NewTransactionGenerator()
+
+	// Генерируем транзакцию и проверяем, что сумма всегда положительная
+	for i := 0; i < 10; i++ {
+		tx := gen.GenerateTransaction("low")
+		require.NotNil(t, tx)
+		assert.Greater(t, tx.Amount, 0.0, "Amount should always be positive")
+	}
+}
+
+func TestTransactionGenerator_GenerateTransaction_NegativeAmount(t *testing.T) {
+	gen := NewTransactionGenerator()
+
+	// Генерируем транзакцию и проверяем, что сумма всегда положительная
+	for i := 0; i < 10; i++ {
+		tx := gen.GenerateRandomTransaction()
+		require.NotNil(t, tx)
+		assert.Greater(t, tx.Amount, 0.0, "Amount should always be positive")
+	}
+}
+
+func TestTransactionGenerator_GenerateTransaction_EmptyFields(t *testing.T) {
+	gen := NewTransactionGenerator()
+
+	tx := gen.GenerateTransaction("low")
+	require.NotNil(t, tx)
+
+	// Проверяем, что обязательные поля не пустые
+	assert.NotEmpty(t, tx.TransactionID)
+	assert.NotEmpty(t, tx.AccountNumber)
+	assert.NotEmpty(t, tx.Currency)
+	assert.NotEmpty(t, tx.TransactionType)
+	assert.NotEmpty(t, tx.Channel)
+}
+
+func TestTransactionGenerator_GenerateTransaction_TimestampValid(t *testing.T) {
+	gen := NewTransactionGenerator()
+
+	// Генерируем несколько транзакций и проверяем, что timestamp валидный
+	for i := 0; i < 10; i++ {
+		tx := gen.GenerateTransaction("low")
+		require.NotNil(t, tx)
+		assert.False(t, tx.Timestamp.IsZero(), "Timestamp should not be zero")
+	}
+}
+
+func TestTransactionGenerator_GenerateRandomTransaction_AllFieldsFilled(t *testing.T) {
+	gen := NewTransactionGenerator()
+
+	tx := gen.GenerateRandomTransaction()
+	require.NotNil(t, tx)
+
+	// Проверяем, что все поля заполнены
+	assert.NotEmpty(t, tx.TransactionID)
+	assert.NotEmpty(t, tx.AccountNumber)
+	assert.NotEmpty(t, tx.Currency)
+	assert.NotEmpty(t, tx.TransactionType)
+	assert.NotEmpty(t, tx.Channel)
+	assert.Greater(t, tx.Amount, 0.0)
+	assert.False(t, tx.Timestamp.IsZero())
+}

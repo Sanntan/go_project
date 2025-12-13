@@ -1,5 +1,5 @@
 package main
 
-import "bank-aml-system/internal/bootstrap"
+import "bank-aml-system/internal/bootstrap/fraud_detection"
 
-func main() { bootstrap.StartFraudDetectionService() }
+func main() { fraud_detection.StartFraudDetectionService() }

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
-	"bank-aml-system/internal/config"
+	"bank-aml-system/config"
 )
 
 // SQLiteStorage представляет хранилище SQLite

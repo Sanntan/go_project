@@ -15,10 +15,10 @@ const (
 )
 
 type RiskAnalyzer struct {
-	redisClient *redis.Client
+	redisClient redis.ClientInterface // Используем интерфейс для возможности мокирования
 }
 
-func NewRiskAnalyzer(redisClient *redis.Client) *RiskAnalyzer {
+func NewRiskAnalyzer(redisClient redis.ClientInterface) *RiskAnalyzer {
 	return &RiskAnalyzer{
 		redisClient: redisClient,
 	}

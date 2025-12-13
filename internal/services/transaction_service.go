@@ -16,7 +16,7 @@ import (
 type TransactionServiceImpl struct {
 	repo        storage.TransactionRepository
 	producer    kafka.Producer
-	redisClient *redis.Client // Опциональный Redis клиент для получения флагов
+	redisClient redis.ClientInterface // Опциональный Redis клиент для получения флагов (используем интерфейс)
 }
 
 // NewTransactionService создает новый сервис транзакций
@@ -28,7 +28,7 @@ func NewTransactionService(repo storage.TransactionRepository, producer kafka.Pr
 }
 
 // NewTransactionServiceWithRedis создает новый сервис транзакций с поддержкой Redis
-func NewTransactionServiceWithRedis(repo storage.TransactionRepository, producer kafka.Producer, redisClient *redis.Client) TransactionService {
+func NewTransactionServiceWithRedis(repo storage.TransactionRepository, producer kafka.Producer, redisClient redis.ClientInterface) TransactionService {
 	return &TransactionServiceImpl{
 		repo:        repo,
 		producer:    producer,
