@@ -11,12 +11,12 @@ import (
 	"bank-aml-system/internal/models"
 )
 
-type Producer struct {
+type ProducerImpl struct {
 	producer sarama.SyncProducer
 	topic    string
 }
 
-func NewProducer(cfg *config.Config) (*Producer, error) {
+func NewProducer(cfg *config.Config) (Producer, error) {
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
 	config.Producer.RequiredAcks = sarama.WaitForAll
@@ -28,13 +28,13 @@ func NewProducer(cfg *config.Config) (*Producer, error) {
 	}
 
 	log.Println("Kafka producer created successfully")
-	return &Producer{
+	return &ProducerImpl{
 		producer: producer,
 		topic:    cfg.Kafka.TransactionTopic,
 	}, nil
 }
 
-func (p *Producer) SendTransactionEvent(event *models.KafkaTransactionEvent) error {
+func (p *ProducerImpl) SendTransactionEvent(event *models.KafkaTransactionEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %w", err)
@@ -55,7 +55,7 @@ func (p *Producer) SendTransactionEvent(event *models.KafkaTransactionEvent) err
 	return nil
 }
 
-func (p *Producer) Close() error {
+func (p *ProducerImpl) Close() error {
 	return p.producer.Close()
 }
 

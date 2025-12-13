@@ -12,13 +12,13 @@ import (
 	"bank-aml-system/internal/models"
 )
 
-type Consumer struct {
+type ConsumerImpl struct {
 	consumer sarama.ConsumerGroup
 	topic    string
 	handler  func(*models.KafkaTransactionEvent) error
 }
 
-func NewConsumer(cfg *config.Config, handler func(*models.KafkaTransactionEvent) error) (*Consumer, error) {
+func NewConsumer(cfg *config.Config, handler func(*models.KafkaTransactionEvent) error) (Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
@@ -30,14 +30,14 @@ func NewConsumer(cfg *config.Config, handler func(*models.KafkaTransactionEvent)
 	}
 
 	log.Println("Kafka consumer created successfully")
-	return &Consumer{
+	return &ConsumerImpl{
 		consumer: consumer,
 		topic:    cfg.Kafka.TransactionTopic,
 		handler:  handler,
 	}, nil
 }
 
-func (c *Consumer) Start(ctx context.Context) error {
+func (c *ConsumerImpl) Start(ctx context.Context) error {
 	topics := []string{c.topic}
 	
 	consumerHandler := &consumerGroupHandler{
@@ -79,7 +79,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 	return c.consumer.Close()
 }
 
-func (c *Consumer) Close() error {
+func (c *ConsumerImpl) Close() error {
 	return c.consumer.Close()
 }
 

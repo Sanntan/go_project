@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"bank-aml-system/internal/config"
-	"bank-aml-system/internal/database"
 	"bank-aml-system/internal/fraud"
 	"bank-aml-system/internal/generator"
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/models"
 	"bank-aml-system/internal/redis"
+	"bank-aml-system/internal/storage"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -26,16 +26,16 @@ import (
 
 type TransactionGRPCServer struct {
 	transaction.UnimplementedTransactionServiceServer
-	repo         *database.Repository
-	producer     *kafka.Producer
-	redisClient  *redis.Client
-	riskAnalyzer *fraud.RiskAnalyzer
-	generator    *generator.TransactionGenerator
+	repo         storage.TransactionRepository
+	producer      kafka.Producer
+	redisClient   *redis.Client
+	riskAnalyzer  *fraud.RiskAnalyzer
+	generator     *generator.TransactionGenerator
 }
 
 func NewTransactionGRPCServer(
-	repo *database.Repository,
-	producer *kafka.Producer,
+	repo storage.TransactionRepository,
+	producer kafka.Producer,
 	redisClient *redis.Client,
 	riskAnalyzer *fraud.RiskAnalyzer,
 ) *TransactionGRPCServer {
