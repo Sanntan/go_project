@@ -1,18 +1,22 @@
 package services
 
 import (
-	"github.com/google/uuid"
 	"time"
 
-	"bank-aml-system/internal/models"
-	"bank-aml-system/internal/storage"
+	"github.com/google/uuid"
+
 	"bank-aml-system/internal/kafka"
+	"bank-aml-system/internal/logger"
+	"bank-aml-system/internal/models"
+	"bank-aml-system/internal/redis"
+	"bank-aml-system/internal/storage"
 )
 
 // TransactionServiceImpl реализует интерфейс TransactionService
 type TransactionServiceImpl struct {
-	repo     storage.TransactionRepository
-	producer kafka.Producer
+	repo        storage.TransactionRepository
+	producer    kafka.Producer
+	redisClient *redis.Client // Опциональный Redis клиент для получения флагов
 }
 
 // NewTransactionService создает новый сервис транзакций
@@ -20,6 +24,15 @@ func NewTransactionService(repo storage.TransactionRepository, producer kafka.Pr
 	return &TransactionServiceImpl{
 		repo:     repo,
 		producer: producer,
+	}
+}
+
+// NewTransactionServiceWithRedis создает новый сервис транзакций с поддержкой Redis
+func NewTransactionServiceWithRedis(repo storage.TransactionRepository, producer kafka.Producer, redisClient *redis.Client) TransactionService {
+	return &TransactionServiceImpl{
+		repo:        repo,
+		producer:    producer,
+		redisClient: redisClient,
 	}
 }
 
@@ -54,6 +67,13 @@ func (s *TransactionServiceImpl) ProcessTransaction(req *models.ProcessingReques
 		return nil, err
 	}
 
+	// Логируем отправку в Kafka
+	logger.LogEvent(logger.EventKafkaSent, "ingestion-service", "kafka", map[string]interface{}{
+		"processing_id":  processingID,
+		"event_id":       event.EventID,
+		"transaction_id": req.TransactionID,
+	})
+
 	return &models.ProcessingResponse{
 		ProcessingID: processingID,
 		Status:       "pending_review",
@@ -72,7 +92,7 @@ func (s *TransactionServiceImpl) GetTransactionStatus(processingID string) (*mod
 		return nil, nil
 	}
 
-	return &models.TransactionStatusResponse{
+	response := &models.TransactionStatusResponse{
 		ProcessingID:      status.ProcessingID,
 		TransactionID:     status.TransactionID,
 		Amount:            status.Amount,
@@ -81,7 +101,18 @@ func (s *TransactionServiceImpl) GetTransactionStatus(processingID string) (*mod
 		RiskScore:         status.RiskScore,
 		RiskLevel:         status.RiskLevel,
 		AnalysisTimestamp: status.AnalysisTimestamp,
-	}, nil
+		Flags:             []string{}, // По умолчанию пустой массив
+	}
+
+	// Если есть Redis клиент, пытаемся получить флаги из кэша
+	if s.redisClient != nil {
+		analysis, err := s.redisClient.GetAnalysis(processingID)
+		if err == nil && analysis != nil && analysis.Flags != nil {
+			response.Flags = analysis.Flags
+		}
+	}
+
+	return response, nil
 }
 
 // GetAllTransactions возвращает все транзакции
@@ -93,7 +124,7 @@ func (s *TransactionServiceImpl) GetAllTransactions(limit int) ([]*models.Transa
 
 	responses := make([]*models.TransactionStatusResponse, 0, len(transactions))
 	for _, tx := range transactions {
-		responses = append(responses, &models.TransactionStatusResponse{
+		response := &models.TransactionStatusResponse{
 			ProcessingID:      tx.ProcessingID,
 			TransactionID:     tx.TransactionID,
 			Amount:            tx.Amount,
@@ -102,7 +133,18 @@ func (s *TransactionServiceImpl) GetAllTransactions(limit int) ([]*models.Transa
 			RiskScore:         tx.RiskScore,
 			RiskLevel:         tx.RiskLevel,
 			AnalysisTimestamp: tx.AnalysisTimestamp,
-		})
+			Flags:             []string{}, // По умолчанию пустой массив
+		}
+
+		// Если есть Redis клиент, пытаемся получить флаги из кэша
+		if s.redisClient != nil {
+			analysis, err := s.redisClient.GetAnalysis(tx.ProcessingID)
+			if err == nil && analysis != nil && analysis.Flags != nil {
+				response.Flags = analysis.Flags
+			}
+		}
+
+		responses = append(responses, response)
 	}
 
 	return responses, nil
@@ -112,4 +154,3 @@ func (s *TransactionServiceImpl) GetAllTransactions(limit int) ([]*models.Transa
 func (s *TransactionServiceImpl) ClearAllTransactions() error {
 	return s.repo.ClearAllTransactions()
 }
-

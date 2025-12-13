@@ -4,20 +4,20 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"bank-aml-system/internal/generator"
 	"bank-aml-system/internal/logger"
 	"bank-aml-system/internal/models"
 	"bank-aml-system/internal/services"
+
+	"github.com/gin-gonic/gin"
 )
 
-// Handlers содержит обработчики REST API
 type Handlers struct {
 	transactionService services.TransactionService
 	generator          *generator.TransactionGenerator
 }
 
-// NewHandlers создает новые обработчики REST API
+// Создает новые обработчики REST API
 func NewHandlers(transactionService services.TransactionService) *Handlers {
 	return &Handlers{
 		transactionService: transactionService,
@@ -126,4 +126,3 @@ func (h *Handlers) GenerateRandomTransaction(c *gin.Context) {
 		"branch_id":            tx.BranchID,
 	})
 }
-

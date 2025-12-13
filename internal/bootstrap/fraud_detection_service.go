@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"bank-aml-system/internal/api/rest"
 	"bank-aml-system/internal/config"
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/logger"
@@ -53,8 +53,8 @@ func StartFraudDetectionService() {
 	// Инициализация анализатора рисков
 	riskAnalyzerService := services.NewRiskAnalyzer(redisClient)
 
-	// Создаем сервис транзакций для получения статусов
-	transactionService := services.NewTransactionService(storageRepo, nil)
+	// Создаем сервис транзакций для получения статусов с поддержкой Redis (для флагов)
+	transactionService := services.NewTransactionServiceWithRedis(storageRepo, nil, redisClient)
 
 	// Настройка обработчика Kafka событий
 	handler := func(event *models.KafkaTransactionEvent) error {
@@ -89,26 +89,8 @@ func StartFraudDetectionService() {
 	// Настройка REST API
 	router := gin.Default()
 	
-	router.Use(func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-		if origin == "" {
-			origin = "*"
-		}
-		
-		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	})
-	
+	// Используем общий CORS middleware
+	router.Use(rest.CORSMiddleware())
 	router.Use(gin.Logger(), gin.Recovery())
 
 	api := router.Group("/api/v1")
@@ -128,25 +110,8 @@ func StartFraudDetectionService() {
 		})
 	}
 
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	router.GET("/api/v1/events", func(c *gin.Context) {
-		limit := 100
-		if limitStr := c.Query("limit"); limitStr != "" {
-			if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 && parsed <= 500 {
-				limit = parsed
-			}
-		}
-		events := logger.GetEvents(limit)
-		c.JSON(http.StatusOK, gin.H{"events": events})
-	})
-
-	router.GET("/api/v1/stats", func(c *gin.Context) {
-		stats := logger.GetStats()
-		c.JSON(http.StatusOK, stats)
-	})
+	// Используем общие endpoints (health, events, stats)
+	rest.SetupCommonEndpoints(router)
 
 	api.DELETE("/transactions", func(c *gin.Context) {
 		if err := storageRepo.ClearAllTransactions(); err != nil {
