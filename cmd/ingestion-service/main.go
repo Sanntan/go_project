@@ -15,17 +15,17 @@ import (
 	"github.com/google/uuid"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	
+
 	_ "bank-aml-system/docs" // Swagger docs
 	"bank-aml-system/internal/config"
 	"bank-aml-system/internal/database"
+	"bank-aml-system/internal/fraud"
 	"bank-aml-system/internal/generator"
 	"bank-aml-system/internal/grpc"
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/logger"
 	"bank-aml-system/internal/models"
 	"bank-aml-system/internal/redis"
-	"bank-aml-system/internal/fraud"
 )
 
 // @title Bank AML System API
@@ -92,14 +92,14 @@ func main() {
 
 	// Настройка Gin router
 	router := gin.Default()
-	
+
 	// CORS middleware - применяем ко всем маршрутам
 	router.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if origin == "" {
 			origin = "*"
 		}
-		
+
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
@@ -113,7 +113,7 @@ func main() {
 
 		c.Next()
 	})
-	
+
 	router.Use(gin.Logger(), gin.Recovery())
 
 	// Swagger UI
@@ -157,19 +157,18 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear transactions"})
 			return
 		}
-		
+
 		logger.LogEvent(logger.EventDBUpdated, "ingestion-service", "sqlite", map[string]interface{}{
 			"action": "database_cleared",
 		})
-		
+
 		// Очищаем localStorage на фронтенде через ответ
 		c.JSON(http.StatusOK, gin.H{
-			"message": "All transactions cleared successfully",
+			"message":       "All transactions cleared successfully",
 			"clear_storage": true,
 		})
 	})
 
-	// Generate single random transaction for form (returns transaction data, doesn't save)
 	// @Summary Генерация случайной транзакции
 	// @Description Генерирует случайные данные транзакции для заполнения формы
 	// @Tags transactions
@@ -187,7 +186,7 @@ func main() {
 			"account_number":       tx.AccountNumber,
 			"amount":               tx.Amount,
 			"currency":             tx.Currency,
-			"transaction_type":    tx.TransactionType,
+			"transaction_type":     tx.TransactionType,
 			"counterparty_account": tx.CounterpartyAccount,
 			"counterparty_bank":    tx.CounterpartyBank,
 			"counterparty_country": tx.CounterpartyCountry,
@@ -402,4 +401,3 @@ func (s *IngestionService) getTransactionStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
-
