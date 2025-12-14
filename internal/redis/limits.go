@@ -8,13 +8,6 @@ import (
 	redisv9 "github.com/redis/go-redis/v9"
 )
 
-// IncrementRiskStats увеличивает счетчик статистики рисков
-func (c *Client) IncrementRiskStats(riskLevel string) error {
-	ctx := context.Background()
-	key := fmt.Sprintf("risk_stats:%s", riskLevel)
-	return c.rdb.Incr(ctx, key).Err()
-}
-
 // IncrementAccountDailyCount увеличивает счетчик транзакций по счету за день
 func (c *Client) IncrementAccountDailyCount(accountNumber string) error {
 	ctx := context.Background()
@@ -36,3 +29,4 @@ func (c *Client) GetAccountDailyCount(accountNumber string) (int64, error) {
 	}
 	return count, err
 }
+

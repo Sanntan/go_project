@@ -7,7 +7,6 @@ import (
 
 	kafkamocks "bank-aml-system/internal/kafka/mocks"
 	"bank-aml-system/internal/models"
-	redismocks "bank-aml-system/internal/redis/mocks"
 	storagemocks "bank-aml-system/internal/storage/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -27,21 +26,6 @@ func TestNewTransactionService(t *testing.T) {
 	assert.Equal(t, mockRepo, impl.repo)
 	assert.Equal(t, mockProducer, impl.producer)
 	assert.Nil(t, impl.redisClient)
-}
-
-func TestNewTransactionServiceWithRedis(t *testing.T) {
-	mockRepo := new(storagemocks.MockTransactionRepository)
-	mockProducer := new(kafkamocks.MockProducer)
-	mockRedis := new(redismocks.MockClientInterface)
-
-	service := NewTransactionServiceWithRedis(mockRepo, mockProducer, mockRedis)
-
-	assert.NotNil(t, service)
-	impl, ok := service.(*TransactionServiceImpl)
-	require.True(t, ok)
-	assert.Equal(t, mockRepo, impl.repo)
-	assert.Equal(t, mockProducer, impl.producer)
-	assert.Equal(t, mockRedis, impl.redisClient)
 }
 
 func TestTransactionService_ProcessTransaction_Success(t *testing.T) {
@@ -172,74 +156,6 @@ func TestTransactionService_GetTransactionStatus_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestTransactionService_GetTransactionStatus_WithRedis_WithFlags(t *testing.T) {
-	mockRepo := new(storagemocks.MockTransactionRepository)
-	mockProducer := new(kafkamocks.MockProducer)
-	mockRedis := new(redismocks.MockClientInterface)
-	service := NewTransactionServiceWithRedis(mockRepo, mockProducer, mockRedis)
-
-	processingID := "proc_test_123"
-	riskScore := 50
-	riskLevel := "medium"
-	analysisTime := time.Now()
-
-	status := &models.TransactionStatus{
-		ProcessingID:      processingID,
-		TransactionID:     "TXN-001",
-		Amount:            func() *float64 { v := 100000.0; return &v }(),
-		Currency:          func() *string { v := "RUB"; return &v }(),
-		Status:            "reviewed",
-		RiskScore:         &riskScore,
-		RiskLevel:         &riskLevel,
-		AnalysisTimestamp: &analysisTime,
-	}
-
-	analysis := &models.RiskAnalysis{
-		RiskScore: 50,
-		RiskLevel: "medium",
-		Flags:     []string{"large_amount", "offshore_counterparty"},
-	}
-
-	mockRepo.On("GetTransactionByProcessingID", processingID).Return(status, nil)
-	mockRedis.On("GetAnalysis", processingID).Return(analysis, nil)
-
-	response, err := service.GetTransactionStatus(processingID)
-
-	require.NoError(t, err)
-	require.NotNil(t, response)
-	assert.Equal(t, processingID, response.ProcessingID)
-	assert.Equal(t, []string{"large_amount", "offshore_counterparty"}, response.Flags)
-
-	mockRepo.AssertExpectations(t)
-	mockRedis.AssertExpectations(t)
-}
-
-func TestTransactionService_GetTransactionStatus_WithRedis_NoAnalysis(t *testing.T) {
-	mockRepo := new(storagemocks.MockTransactionRepository)
-	mockProducer := new(kafkamocks.MockProducer)
-	mockRedis := new(redismocks.MockClientInterface)
-	service := NewTransactionServiceWithRedis(mockRepo, mockProducer, mockRedis)
-
-	processingID := "proc_test_123"
-	status := &models.TransactionStatus{
-		ProcessingID:  processingID,
-		TransactionID: "TXN-001",
-		Status:        "pending_review",
-	}
-
-	mockRepo.On("GetTransactionByProcessingID", processingID).Return(status, nil)
-	mockRedis.On("GetAnalysis", processingID).Return(nil, nil) // Нет анализа в Redis
-
-	response, err := service.GetTransactionStatus(processingID)
-
-	require.NoError(t, err)
-	require.NotNil(t, response)
-	assert.Empty(t, response.Flags) // Флаги пустые, так как нет анализа
-
-	mockRepo.AssertExpectations(t)
-	mockRedis.AssertExpectations(t)
-}
-
 func TestTransactionService_GetTransactionStatus_NotFound(t *testing.T) {
 	mockRepo := new(storagemocks.MockTransactionRepository)
 	mockProducer := new(kafkamocks.MockProducer)
@@ -313,42 +229,6 @@ func TestTransactionService_GetAllTransactions_Success(t *testing.T) {
 	assert.Empty(t, responses[0].Flags) // Без Redis
 
 	mockRepo.AssertExpectations(t)
-}
-
-func TestTransactionService_GetAllTransactions_WithRedis_WithFlags(t *testing.T) {
-	mockRepo := new(storagemocks.MockTransactionRepository)
-	mockProducer := new(kafkamocks.MockProducer)
-	mockRedis := new(redismocks.MockClientInterface)
-	service := NewTransactionServiceWithRedis(mockRepo, mockProducer, mockRedis)
-
-	riskScore := 50
-	riskLevel := "medium"
-
-	transactions := []*models.TransactionStatus{
-		{
-			ProcessingID:  "proc_1",
-			TransactionID: "TXN-001",
-			Status:        "reviewed",
-			RiskScore:     &riskScore,
-			RiskLevel:     &riskLevel,
-		},
-	}
-
-	analysis := &models.RiskAnalysis{
-		Flags: []string{"large_amount"},
-	}
-
-	mockRepo.On("GetAllTransactions", 100).Return(transactions, nil)
-	mockRedis.On("GetAnalysis", "proc_1").Return(analysis, nil)
-
-	responses, err := service.GetAllTransactions(100)
-
-	require.NoError(t, err)
-	require.Len(t, responses, 1)
-	assert.Equal(t, []string{"large_amount"}, responses[0].Flags)
-
-	mockRepo.AssertExpectations(t)
-	mockRedis.AssertExpectations(t)
 }
 
 func TestTransactionService_GetAllTransactions_RepositoryError(t *testing.T) {

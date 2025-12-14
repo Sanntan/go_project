@@ -26,16 +26,13 @@ type RedisConfig struct {
 }
 
 type KafkaConfig struct {
-	Brokers            []string
-	TransactionTopic   string
-	AnalyzedTopic      string
-	ConsumerGroupID    string
+	Brokers          []string
+	TransactionTopic string
 }
 
 type ServerConfig struct {
-	IngestionPort      int
-	FraudDetectionPort int
-	GRPCPort          int
+	IngestionPort int
+	GRPCPort      int
 }
 
 func Load() *Config {
@@ -54,15 +51,12 @@ func Load() *Config {
 			Password: getEnv("REDIS_PASSWORD", ""),
 		},
 		Kafka: KafkaConfig{
-			Brokers:            []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
-			TransactionTopic:   getEnv("KAFKA_TRANSACTION_TOPIC", "bank.transactions.received"),
-			AnalyzedTopic:      getEnv("KAFKA_ANALYZED_TOPIC", "bank.transactions.analyzed"),
-			ConsumerGroupID:    getEnv("KAFKA_CONSUMER_GROUP", "fraud-detection-group"),
+			Brokers:          []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
+			TransactionTopic: getEnv("KAFKA_TRANSACTION_TOPIC", "bank.transactions.received"),
 		},
 		Server: ServerConfig{
-			IngestionPort:      getEnvAsInt("INGESTION_SERVICE_PORT", 8080),
-			FraudDetectionPort: getEnvAsInt("FRAUD_DETECTION_SERVICE_PORT", 8081),
-			GRPCPort:          getEnvAsInt("GRPC_PORT", 50051),
+			IngestionPort: getEnvAsInt("INGESTION_SERVICE_PORT", 8080),
+			GRPCPort:      getEnvAsInt("GRPC_PORT", 50051),
 		},
 	}
 }

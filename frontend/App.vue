@@ -10,10 +10,6 @@
                 <span class="status-dot"></span>
                 Сервис приема транзакций: {{ ingestionStatus ? 'Онлайн' : 'Офлайн' }}
             </div>
-            <div class="status-item" :class="{ 'online': fraudStatus, 'offline': !fraudStatus }">
-                <span class="status-dot"></span>
-                Сервис детекции мошенничества: {{ fraudStatus ? 'Онлайн' : 'Офлайн' }}
-            </div>
         </div>
 
         <!-- Вкладки -->
@@ -370,7 +366,6 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 
 const ingestionStatus = ref(false)
-const fraudStatus = ref(false)
 const loading = ref(false)
 const transactions = ref([])
 const selectedTransaction = ref(null)
@@ -399,13 +394,6 @@ const checkServices = async () => {
         ingestionStatus.value = true
     } catch (e) {
         ingestionStatus.value = false
-    }
-
-    try {
-        await axios.get('http://localhost:8081/health', { timeout: 1000 })
-        fraudStatus.value = true
-    } catch (e) {
-        fraudStatus.value = false
     }
 }
 
@@ -607,8 +595,7 @@ const getComponentName = (component) => {
 
 const getServiceName = (service) => {
     const names = {
-        'ingestion-service': 'Сервис приема',
-        'fraud-detection-service': 'Сервис детекции'
+        'ingestion-service': 'Сервис приема'
     }
     return names[service] || service
 }

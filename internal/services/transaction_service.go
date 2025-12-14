@@ -27,15 +27,6 @@ func NewTransactionService(repo storage.TransactionRepository, producer kafka.Pr
 	}
 }
 
-// NewTransactionServiceWithRedis создает новый сервис транзакций с поддержкой Redis
-func NewTransactionServiceWithRedis(repo storage.TransactionRepository, producer kafka.Producer, redisClient redis.ClientInterface) TransactionService {
-	return &TransactionServiceImpl{
-		repo:        repo,
-		producer:    producer,
-		redisClient: redisClient,
-	}
-}
-
 // ProcessTransaction обрабатывает транзакцию
 func (s *TransactionServiceImpl) ProcessTransaction(req *models.ProcessingRequest) (*models.ProcessingResponse, error) {
 	processingID := "proc_" + uuid.New().String()

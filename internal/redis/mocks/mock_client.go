@@ -26,12 +26,6 @@ func (m *MockClientInterface) GetAnalysis(processingID string) (*models.RiskAnal
 	return args.Get(0).(*models.RiskAnalysis), args.Error(1)
 }
 
-// IncrementRiskStats мок для IncrementRiskStats
-func (m *MockClientInterface) IncrementRiskStats(riskLevel string) error {
-	args := m.Called(riskLevel)
-	return args.Error(0)
-}
-
 // IncrementAccountDailyCount мок для IncrementAccountDailyCount
 func (m *MockClientInterface) IncrementAccountDailyCount(accountNumber string) error {
 	args := m.Called(accountNumber)
@@ -65,12 +59,6 @@ func (m *MockClientInterface) InitializeBlacklists() error {
 // AddToBlacklist мок для AddToBlacklist
 func (m *MockClientInterface) AddToBlacklist(accountNumber string) error {
 	args := m.Called(accountNumber)
-	return args.Error(0)
-}
-
-// ClearTransactionData мок для ClearTransactionData
-func (m *MockClientInterface) ClearTransactionData() error {
-	args := m.Called()
 	return args.Error(0)
 }
 

@@ -1,8 +1,6 @@
 package kafka
 
 import (
-	"context"
-
 	"bank-aml-system/internal/models"
 )
 
@@ -13,9 +11,3 @@ type Producer interface {
 	Close() error
 }
 
-// Consumer определяет интерфейс для получения сообщений из Kafka
-type Consumer interface {
-	Start(ctx context.Context) error
-
-	Close() error
-}

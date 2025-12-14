@@ -11,11 +11,6 @@ docker-compose up -d
 go run cmd/ingestion-service/main.go
 
 
-**Fraud Detection Service:**
-
-go run cmd/fraud-detection-service/main.go
-
-
 **Фронтенд**
 
 cd frontend
@@ -93,9 +88,6 @@ Invoke-RestMethod -Uri "http://localhost:8080/api/v1/transactions?limit=10"
 **Health checks:**
 # Ingestion Service
 Invoke-RestMethod -Uri "http://localhost:8080/health"
-
-# Fraud Detection Service
-Invoke-RestMethod -Uri "http://localhost:8081/health"
 
 
 **Статистика:**
