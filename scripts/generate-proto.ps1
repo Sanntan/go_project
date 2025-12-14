@@ -5,9 +5,8 @@ Write-Host "=== Генерация gRPC кода из proto файлов ===" -F
 # Проверяем наличие protoc
 if (-not (Get-Command protoc -ErrorAction SilentlyContinue)) {
     Write-Host "ОШИБКА: protoc не найден в PATH!" -ForegroundColor Red
-    Write-Host "`nУстановите protoc одним из способов:" -ForegroundColor Yellow
-    Write-Host "1. Запустите: .\scripts\install-protoc-windows.ps1" -ForegroundColor Cyan
-    Write-Host "2. Или установите вручную (см. INSTALL_PROTOC_WINDOWS.md)" -ForegroundColor Cyan
+    Write-Host "`nУстановка protoc:" -ForegroundColor Yellow
+    Write-Host "1. : .\scripts\install-protoc-windows.ps1" -ForegroundColor Cyan
     exit 1
 }
 
