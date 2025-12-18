@@ -45,17 +45,13 @@ func StartIngestionService() {
 	}()
 
 	// Запуск gRPC сервера в отдельной горутине
-	if deps.RedisClient != nil && deps.RiskAnalyzer != nil {
-		go func() {
-			log.Printf("Starting gRPC server on port %d...", cfg.Server.GRPCPort)
-			grpcServer := grpc.NewTransactionGRPCServer(deps.StorageRepo, deps.KafkaProducer, deps.RedisClient, deps.RiskAnalyzer)
-			if err := grpc.StartGRPCServer(cfg, grpcServer); err != nil {
-				log.Fatalf("Failed to start gRPC server: %v", err)
-			}
-		}()
-	} else {
-		log.Println("Warning: gRPC server not started (Redis not available)")
-	}
+	go func() {
+		log.Printf("Starting gRPC server on port %d...", cfg.Server.GRPCPort)
+		grpcServer := grpc.NewTransactionGRPCServer(deps.StorageRepo, deps.KafkaProducer)
+		if err := grpc.StartGRPCServer(cfg, grpcServer); err != nil {
+			log.Fatalf("Failed to start gRPC server: %v", err)
+		}
+	}()
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

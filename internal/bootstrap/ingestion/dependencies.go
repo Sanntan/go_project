@@ -4,9 +4,7 @@ import (
 	"log"
 
 	"bank-aml-system/config"
-	"bank-aml-system/internal/fraud"
 	"bank-aml-system/internal/kafka"
-	"bank-aml-system/internal/redis"
 	"bank-aml-system/internal/services"
 	"bank-aml-system/internal/storage"
 	"bank-aml-system/internal/storage/sqlite"
@@ -17,8 +15,6 @@ type Dependencies struct {
 	StorageConn        *sqlite.SQLiteStorage
 	StorageRepo        storage.TransactionRepository
 	KafkaProducer      kafka.Producer
-	RedisClient        *redis.Client
-	RiskAnalyzer       *fraud.RiskAnalyzer
 	TransactionService services.TransactionService
 }
 
@@ -40,26 +36,6 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, error) {
 	}
 	log.Println("Kafka producer connected successfully")
 
-	// Инициализация Redis для gRPC сервера
-	log.Println("Connecting to Redis...")
-	redisClient, err := redis.NewClient(cfg)
-	if err != nil {
-		log.Printf("Warning: Failed to connect to Redis (gRPC will have limited functionality): %v", err)
-	} else {
-		log.Println("Redis connection established")
-		if err := redisClient.InitializeBlacklists(); err != nil {
-			log.Printf("Warning: Failed to initialize blacklists: %v", err)
-		} else {
-			log.Println("Redis blacklists initialized")
-		}
-	}
-
-	// Инициализация анализатора рисков для gRPC
-	var riskAnalyzer *fraud.RiskAnalyzer
-	if redisClient != nil {
-		riskAnalyzer = fraud.NewRiskAnalyzer(redisClient)
-	}
-
 	// Создаем сервис транзакций
 	transactionService := services.NewTransactionService(storageRepo, producer)
 
@@ -67,8 +43,6 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, error) {
 		StorageConn:        storage,
 		StorageRepo:        storageRepo,
 		KafkaProducer:      producer,
-		RedisClient:        redisClient,
-		RiskAnalyzer:       riskAnalyzer,
 		TransactionService: transactionService,
 	}, nil
 }
@@ -77,11 +51,6 @@ func InitializeDependencies(cfg *config.Config) (*Dependencies, error) {
 func (d *Dependencies) Close() error {
 	if d.KafkaProducer != nil {
 		if err := d.KafkaProducer.Close(); err != nil {
-			return err
-		}
-	}
-	if d.RedisClient != nil {
-		if err := d.RedisClient.Close(); err != nil {
 			return err
 		}
 	}

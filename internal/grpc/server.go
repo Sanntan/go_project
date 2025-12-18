@@ -8,11 +8,9 @@ import (
 	"time"
 
 	"bank-aml-system/config"
-	"bank-aml-system/internal/fraud"
 	"bank-aml-system/internal/generator"
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/models"
-	"bank-aml-system/internal/redis"
 	"bank-aml-system/internal/storage"
 
 	"github.com/google/uuid"
@@ -26,29 +24,24 @@ import (
 
 type TransactionGRPCServer struct {
 	transaction.UnimplementedTransactionServiceServer
-	repo         storage.TransactionRepository
-	producer      kafka.Producer
-	redisClient   *redis.Client
-	riskAnalyzer  *fraud.RiskAnalyzer
-	generator     *generator.TransactionGenerator
+	repo      storage.TransactionRepository
+	producer  kafka.Producer
+	generator *generator.TransactionGenerator
 }
 
 func NewTransactionGRPCServer(
 	repo storage.TransactionRepository,
 	producer kafka.Producer,
-	redisClient *redis.Client,
-	riskAnalyzer *fraud.RiskAnalyzer,
 ) *TransactionGRPCServer {
 	return &TransactionGRPCServer{
-		repo:         repo,
-		producer:     producer,
-		redisClient:  redisClient,
-		riskAnalyzer: riskAnalyzer,
-		generator:    generator.NewTransactionGenerator(),
+		repo:      repo,
+		producer:  producer,
+		generator: generator.NewTransactionGenerator(),
 	}
 }
 
-// AnalyzeTransaction анализирует транзакцию на предмет рисков через gRPC
+// AnalyzeTransaction принимает транзакцию через gRPC, сохраняет её и отправляет в Kafka
+// Анализ транзакции выполняется fraud сервисом асинхронно через Kafka
 func (s *TransactionGRPCServer) AnalyzeTransaction(ctx context.Context, req *transaction.AnalyzeTransactionRequest) (*transaction.AnalyzeTransactionResponse, error) {
 	// Парсим timestamp
 	timestamp, err := time.Parse(time.RFC3339, req.Timestamp)
@@ -81,7 +74,7 @@ func (s *TransactionGRPCServer) AnalyzeTransaction(ctx context.Context, req *tra
 		return nil, status.Errorf(codes.Internal, "Failed to save transaction: %v", err)
 	}
 
-	// Отправляем в Kafka для асинхронной обработки
+	// Отправляем в Kafka для асинхронной обработки fraud сервисом
 	event := &models.KafkaTransactionEvent{
 		EventID:   "evt_" + uuid.New().String(),
 		EventType: "transaction_received",
@@ -103,72 +96,21 @@ func (s *TransactionGRPCServer) AnalyzeTransaction(ctx context.Context, req *tra
 		// Продолжаем выполнение, даже если Kafka недоступен
 	}
 
-	// Выполняем синхронный анализ
-	analysis, err := s.riskAnalyzer.AnalyzeTransaction(tx)
-	if err != nil {
-		log.Printf("Error analyzing transaction: %v", err)
-		return nil, status.Errorf(codes.Internal, "Failed to analyze transaction: %v", err)
-	}
-
-	// Сохраняем результаты анализа
-	if err := s.redisClient.SaveAnalysis(processingID, analysis); err != nil {
-		log.Printf("Error saving analysis to Redis: %v", err)
-	}
-
-	// Обновляем статус в БД
-	if err := s.repo.UpdateTransactionAnalysis(
-		processingID,
-		analysis.RiskScore,
-		analysis.RiskLevel,
-		analysis.AnalyzedAt,
-	); err != nil {
-		log.Printf("Error updating transaction in DB: %v", err)
-	}
-
+	// Возвращаем ответ без анализа (анализ будет выполнен fraud сервисом асинхронно)
 	return &transaction.AnalyzeTransactionResponse{
 		ProcessingId:   processingID,
-		RiskScore:      int32(analysis.RiskScore),
-		RiskLevel:      analysis.RiskLevel,
-		Flags:          analysis.Flags,
-		Recommendation: analysis.Recommendation,
-		AnalyzedAt:     analysis.AnalyzedAt.Format(time.RFC3339),
-		Status:         "reviewed",
+		RiskScore:      0,
+		RiskLevel:      "pending",
+		Flags:          []string{},
+		Recommendation: "pending_analysis",
+		AnalyzedAt:     time.Now().Format(time.RFC3339),
+		Status:         "pending_review",
 	}, nil
 }
 
-// GetTransactionStatus возвращает статус транзакции
+// GetTransactionStatus возвращает статус транзакции из БД
 func (s *TransactionGRPCServer) GetTransactionStatus(ctx context.Context, req *transaction.GetTransactionStatusRequest) (*transaction.GetTransactionStatusResponse, error) {
-	// Сначала пытаемся получить из Redis (кэш)
-	analysis, err := s.redisClient.GetAnalysis(req.ProcessingId)
-	if err == nil && analysis != nil {
-		// Получаем базовую информацию о транзакции из БД
-		tx, err := s.repo.GetTransactionByProcessingID(req.ProcessingId)
-		if err != nil {
-			return nil, status.Errorf(codes.NotFound, "Transaction not found")
-		}
-
-		var analysisTimestamp *time.Time
-		if tx.AnalysisTimestamp != nil {
-			analysisTimestamp = tx.AnalysisTimestamp
-		}
-
-		flags := []string{}
-		if analysis.Flags != nil {
-			flags = analysis.Flags
-		}
-
-		return &transaction.GetTransactionStatusResponse{
-			ProcessingId:      req.ProcessingId,
-			TransactionId:     tx.TransactionID,
-			Status:            tx.Status,
-			RiskScore:         int32(analysis.RiskScore),
-			RiskLevel:         analysis.RiskLevel,
-			Flags:             flags,
-			AnalysisTimestamp: formatTime(analysisTimestamp),
-		}, nil
-	}
-
-	// Если нет в кэше, получаем из БД
+	// Получаем транзакцию из БД
 	tx, err := s.repo.GetTransactionByProcessingID(req.ProcessingId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "Transaction not found")
@@ -239,7 +181,7 @@ func StartGRPCServer(cfg *config.Config, server *TransactionGRPCServer) error {
 
 	s := grpc.NewServer()
 	transaction.RegisterTransactionServiceServer(s, server)
-	
+
 	// Включаем reflection API для grpcurl и других инструментов
 	reflection.Register(s)
 

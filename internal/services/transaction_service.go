@@ -8,15 +8,13 @@ import (
 	"bank-aml-system/internal/kafka"
 	"bank-aml-system/internal/logger"
 	"bank-aml-system/internal/models"
-	"bank-aml-system/internal/redis"
 	"bank-aml-system/internal/storage"
 )
 
 // TransactionServiceImpl реализует интерфейс TransactionService
 type TransactionServiceImpl struct {
-	repo        storage.TransactionRepository
-	producer    kafka.Producer
-	redisClient redis.ClientInterface // Опциональный Redis клиент для получения флагов (используем интерфейс)
+	repo     storage.TransactionRepository
+	producer kafka.Producer
 }
 
 // NewTransactionService создает новый сервис транзакций
@@ -92,15 +90,7 @@ func (s *TransactionServiceImpl) GetTransactionStatus(processingID string) (*mod
 		RiskScore:         status.RiskScore,
 		RiskLevel:         status.RiskLevel,
 		AnalysisTimestamp: status.AnalysisTimestamp,
-		Flags:             []string{}, // По умолчанию пустой массив
-	}
-
-	// Если есть Redis клиент, пытаемся получить флаги из кэша
-	if s.redisClient != nil {
-		analysis, err := s.redisClient.GetAnalysis(processingID)
-		if err == nil && analysis != nil && analysis.Flags != nil {
-			response.Flags = analysis.Flags
-		}
+		Flags:             []string{}, // Флаги будут заполнены fraud сервисом при анализе
 	}
 
 	return response, nil
@@ -124,15 +114,7 @@ func (s *TransactionServiceImpl) GetAllTransactions(limit int) ([]*models.Transa
 			RiskScore:         tx.RiskScore,
 			RiskLevel:         tx.RiskLevel,
 			AnalysisTimestamp: tx.AnalysisTimestamp,
-			Flags:             []string{}, // По умолчанию пустой массив
-		}
-
-		// Если есть Redis клиент, пытаемся получить флаги из кэша
-		if s.redisClient != nil {
-			analysis, err := s.redisClient.GetAnalysis(tx.ProcessingID)
-			if err == nil && analysis != nil && analysis.Flags != nil {
-				response.Flags = analysis.Flags
-			}
+			Flags:             []string{}, // Флаги будут заполнены fraud сервисом при анализе
 		}
 
 		responses = append(responses, response)

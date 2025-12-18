@@ -13,7 +13,6 @@ const (
 	EventTransactionSaved   EventType = "transaction_saved"
 	EventKafkaSent         EventType = "kafka_sent"
 	EventKafkaReceived     EventType = "kafka_received"
-	EventRedisSaved        EventType = "redis_saved"
 	EventAnalysisStarted   EventType = "analysis_started"
 	EventAnalysisCompleted EventType = "analysis_completed"
 	EventDBUpdated         EventType = "db_updated"
@@ -25,7 +24,7 @@ type Event struct {
 	Service   string                 `json:"service"`
 	Timestamp time.Time              `json:"timestamp"`
 	Data      map[string]interface{} `json:"data"`
-	Component string                 `json:"component"` // kafka, redis, sqlite, etc.
+	Component string                 `json:"component"` // kafka, sqlite, etc.
 }
 
 type EventLogger struct {

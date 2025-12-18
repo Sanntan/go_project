@@ -25,7 +25,6 @@ func TestNewTransactionService(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, mockRepo, impl.repo)
 	assert.Equal(t, mockProducer, impl.producer)
-	assert.Nil(t, impl.redisClient)
 }
 
 func TestTransactionService_ProcessTransaction_Success(t *testing.T) {
@@ -151,7 +150,7 @@ func TestTransactionService_GetTransactionStatus_Success(t *testing.T) {
 	assert.Equal(t, "reviewed", response.Status)
 	assert.Equal(t, &riskScore, response.RiskScore)
 	assert.Equal(t, &riskLevel, response.RiskLevel)
-	assert.Empty(t, response.Flags) // Без Redis флаги пустые
+	assert.Empty(t, response.Flags) // Флаги будут заполнены fraud сервисом при анализе
 
 	mockRepo.AssertExpectations(t)
 }
@@ -226,7 +225,7 @@ func TestTransactionService_GetAllTransactions_Success(t *testing.T) {
 	require.Len(t, responses, 2)
 	assert.Equal(t, "proc_1", responses[0].ProcessingID)
 	assert.Equal(t, "proc_2", responses[1].ProcessingID)
-	assert.Empty(t, responses[0].Flags) // Без Redis
+	assert.Empty(t, responses[0].Flags) // Флаги будут заполнены fraud сервисом при анализе
 
 	mockRepo.AssertExpectations(t)
 }

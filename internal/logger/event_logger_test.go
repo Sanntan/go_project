@@ -242,7 +242,6 @@ func TestEventLogger_DifferentEventTypes(t *testing.T) {
 		EventTransactionSaved,
 		EventKafkaSent,
 		EventKafkaReceived,
-		EventRedisSaved,
 		EventAnalysisStarted,
 		EventAnalysisCompleted,
 		EventDBUpdated,

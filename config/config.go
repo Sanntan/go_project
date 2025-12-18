@@ -10,19 +10,12 @@ import (
 
 type Config struct {
 	DB     DBConfig
-	Redis  RedisConfig
 	Kafka  KafkaConfig
 	Server ServerConfig
 }
 
 type DBConfig struct {
 	DBPath string // Путь к файлу SQLite
-}
-
-type RedisConfig struct {
-	Host     string
-	Port     string
-	Password string
 }
 
 type KafkaConfig struct {
@@ -44,11 +37,6 @@ func Load() *Config {
 	return &Config{
 		DB: DBConfig{
 			DBPath: getEnv("DB_PATH", "./data/bank_aml.db"),
-		},
-		Redis: RedisConfig{
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnv("REDIS_PORT", "6379"),
-			Password: getEnv("REDIS_PASSWORD", ""),
 		},
 		Kafka: KafkaConfig{
 			Brokers:          []string{getEnv("KAFKA_BROKERS", "localhost:9092")},
