@@ -46,6 +46,16 @@ grpcurl -plaintext localhost:50051 list
 grpcurl -plaintext -d '{}' localhost:50051 transaction.TransactionService/GenerateRandomTransaction
 
 
+**Отправка транзакции через gRPC (AnalyzeTransaction) - транзакция автоматически сохраняется, отправляется в Kafka, обрабатывается fraud-сервисом и отображается на фронте:**
+
+grpcurl -plaintext -d '{"transaction_id":"TXN-GRPC-001","account_number":"ACC987654321","amount":2500000.0,"currency":"RUB","transaction_type":"international_transfer","counterparty_account":"ACC111222333","counterparty_bank":"Offshore Bank","counterparty_country":"KY","channel":"online","user_id":"user123","branch_id":"branch001","timestamp":"2024-01-15T14:30:00Z"}' localhost:50051 transaction.TransactionService/AnalyzeTransaction
+
+
+**Быстрый тест с высоким риском (офшорная страна + крупная сумма):**
+
+grpcurl -plaintext -d '{"transaction_id":"TXN-HIGH-RISK","account_number":"ACC123456","amount":5000000.0,"currency":"USD","transaction_type":"international_transfer","counterparty_country":"KY","channel":"online","timestamp":"2024-01-15T14:30:00Z"}' localhost:50051 transaction.TransactionService/AnalyzeTransaction
+
+
 **Получение статуса транзакции:**
 
 grpcurl -plaintext -d '{"processing_id": "proc_ваш-id"}' localhost:50051 transaction.TransactionService/GetTransactionStatus

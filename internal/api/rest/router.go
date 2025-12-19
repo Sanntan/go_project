@@ -76,6 +76,8 @@ func SetupRouter(handlers *Handlers) *gin.Engine {
 	api := router.Group("/api/v1")
 	{
 		api.POST("/transactions", handlers.HandleTransaction)
+		// Отправка транзакции через gRPC (ingestion -> gRPC server)
+		api.POST("/transactions/grpc", handlers.HandleTransactionGRPC)
 		api.GET("/transactions", handlers.GetAllTransactions)
 		api.GET("/transactions/:processing_id", handlers.GetTransactionStatus)
 		api.DELETE("/transactions", handlers.ClearAllTransactions)

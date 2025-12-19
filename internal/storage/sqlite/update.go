@@ -21,7 +21,9 @@ func (s *SQLiteStorage) UpdateTransactionAnalysis(
 		WHERE processing_id = ?
 	`
 
-	_, err := s.DB.Exec(query, riskScore, riskLevel, analysisTime, processingID)
-	return err
+	return retryOperation(func() error {
+		_, err := s.DB.Exec(query, riskScore, riskLevel, analysisTime, processingID)
+		return err
+	}, 5, 100*time.Millisecond) // Больше попыток для UPDATE операций
 }
 

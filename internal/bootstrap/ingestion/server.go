@@ -10,10 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	transaction "bank-aml-system/api/proto"
 	"bank-aml-system/config"
 	_ "bank-aml-system/docs" // Swagger docs
 	"bank-aml-system/internal/api/rest"
 	"bank-aml-system/internal/grpc"
+
+	grpcLib "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // StartIngestionService запускает сервис приема транзакций
@@ -27,8 +31,22 @@ func StartIngestionService() {
 	}
 	defer deps.Close()
 
+	// Настраиваем gRPC-клиент, чтобы из REST можно было вызывать gRPC-сервис
+	var grpcConn *grpcLib.ClientConn
+	var grpcClient transaction.TransactionServiceClient
+
+	grpcAddress := fmt.Sprintf("localhost:%d", cfg.Server.GRPCPort)
+	grpcConn, err = grpcLib.Dial(grpcAddress, grpcLib.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("Warning: failed to connect to gRPC server at %s: %v", grpcAddress, err)
+	} else {
+		log.Printf("gRPC client connected to %s", grpcAddress)
+		grpcClient = transaction.NewTransactionServiceClient(grpcConn)
+		defer grpcConn.Close()
+	}
+
 	// Настройка REST API
-	handlers := rest.NewHandlers(deps.TransactionService)
+	handlers := rest.NewHandlers(deps.TransactionService, grpcClient)
 	router := rest.SetupRouter(handlers)
 
 	// Запуск HTTP сервера

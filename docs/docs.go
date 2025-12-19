@@ -9,15 +9,7 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {
-            "name": "API Support",
-            "email": "support@bank-aml.com"
-        },
-        "license": {
-            "name": "Apache 2.0",
-            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
-        },
+        "contact": {},
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -47,15 +39,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Список транзакций",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/models.TransactionStatusResponse"
-                                }
-                            }
+                            "additionalProperties": true
                         }
                     },
                     "500": {
@@ -70,7 +57,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Принимает транзакцию и отправляет её на анализ рисков",
+                "description": "Принимает транзакцию и отправляет её на анализ рисков через REST API. Транзакция сохраняется в БД и отправляется в Kafka для асинхронной обработки fraud-сервисом.",
                 "consumes": [
                     "application/json"
                 ],
@@ -80,7 +67,7 @@ const docTemplate = `{
                 "tags": [
                     "transactions"
                 ],
-                "summary": "Отправить транзакцию на анализ",
+                "summary": "Отправить транзакцию на анализ (REST)",
                 "parameters": [
                     {
                         "description": "Данные транзакции",
@@ -88,15 +75,15 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.ProcessingRequest"
+                            "$ref": "#/definitions/bank-aml-system_internal_models.ProcessingRequest"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Транзакция принята на обработку",
                         "schema": {
-                            "$ref": "#/definitions/models.ProcessingResponse"
+                            "$ref": "#/definitions/bank-aml-system_internal_models.ProcessingResponse"
                         }
                     },
                     "400": {
@@ -118,11 +105,128 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "description": "Удаляет все транзакции из базы данных",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Очистить все транзакции",
+                "responses": {
+                    "200": {
+                        "description": "Транзакции очищены",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/transactions/generate": {
+            "get": {
+                "description": "Генерирует случайную транзакцию для тестирования",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Сгенерировать случайную транзакцию",
+                "responses": {
+                    "200": {
+                        "description": "Сгенерированная транзакция",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/transactions/grpc": {
+            "post": {
+                "description": "Принимает транзакцию и отправляет её на анализ через gRPC-сервис. Транзакция автоматически сохраняется в БД, отправляется в Kafka, обрабатывается fraud-сервисом и возвращается с результатами анализа рисков (risk_score, risk_level, flags).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transactions"
+                ],
+                "summary": "Отправить транзакцию через gRPC",
+                "parameters": [
+                    {
+                        "description": "Данные транзакции",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bank-aml-system_internal_models.ProcessingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Транзакция успешно обработана через gRPC",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - неверный формат данных",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error - ошибка обработки",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable - gRPC клиент недоступен",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
             }
         },
         "/transactions/{processing_id}": {
             "get": {
-                "description": "Возвращает детальную информацию о транзакции и её анализе",
+                "description": "Возвращает детальную информацию о транзакции и её анализе рисков",
                 "consumes": [
                     "application/json"
                 ],
@@ -144,9 +248,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Статус транзакции",
                         "schema": {
-                            "$ref": "#/definitions/models.TransactionStatusResponse"
+                            "$ref": "#/definitions/bank-aml-system_internal_models.TransactionStatusResponse"
                         }
                     },
                     "404": {
@@ -172,7 +276,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "models.ProcessingRequest": {
+        "bank-aml-system_internal_models.ProcessingRequest": {
             "type": "object",
             "required": [
                 "account_number",
@@ -220,7 +324,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ProcessingResponse": {
+        "bank-aml-system_internal_models.ProcessingResponse": {
             "type": "object",
             "properties": {
                 "message": {
@@ -234,7 +338,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.TransactionStatusResponse": {
+        "bank-aml-system_internal_models.TransactionStatusResponse": {
             "type": "object",
             "properties": {
                 "amount": {
@@ -277,7 +381,7 @@ var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
-	Schemes:          []string{"http"},
+	Schemes:          []string{},
 	Title:            "Bank AML System API",
 	Description:      "Система противодействия отмыванию денег и мошенничеству",
 	InfoInstanceName: "swagger",

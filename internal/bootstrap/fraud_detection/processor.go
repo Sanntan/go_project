@@ -29,12 +29,17 @@ func processTransaction(
 		"processing_id": event.Data.ProcessingID,
 	})
 
+	// Получаем транзакцию с retry логикой (встроенной в GetFullTransactionByProcessingID)
+	// Это обрабатывает race condition, когда Kafka событие приходит раньше, чем транзакция сохраняется
 	tx, err := repo.GetFullTransactionByProcessingID(event.Data.ProcessingID)
 	if err != nil {
+		log.Printf("Error getting transaction %s: %v", event.Data.ProcessingID, err)
 		return err
 	}
 	if tx == nil {
-		log.Printf("Transaction not found: %s", event.Data.ProcessingID)
+		log.Printf("Transaction not found after retries: %s (may have been processed already or not saved yet)", event.Data.ProcessingID)
+		// Не возвращаем ошибку, чтобы не блокировать обработку других транзакций
+		// Транзакция может быть уже обработана или еще не успела сохраниться
 		return nil
 	}
 

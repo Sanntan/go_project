@@ -122,9 +122,19 @@
                         <input v-model="form.branch_id" type="text" placeholder="branch001">
                     </div>
 
-                    <button type="submit" class="btn-primary" :disabled="loading">
-                        {{ loading ? 'Отправка...' : '🚀 Отправить транзакцию' }}
-                    </button>
+                    <div class="form-row">
+                        <button type="submit" class="btn-primary" :disabled="loading">
+                            {{ loading ? 'Отправка...' : '🚀 Отправить через REST' }}
+                        </button>
+                        <button 
+                            type="button" 
+                            class="btn-primary" 
+                            :disabled="loading"
+                            @click="submitTransactionGRPC"
+                        >
+                            {{ loading ? 'Отправка...' : '⚡ Отправить через gRPC' }}
+                        </button>
+                    </div>
                 </form>
 
                 <div class="form-actions">
@@ -446,6 +456,48 @@ const submitTransaction = async () => {
         setTimeout(() => loadTransactions(), 2000)
     } catch (error) {
         showNotification('Ошибка при отправке транзакции: ' + (error.response?.data?.error || error.message), 'error')
+    } finally {
+        loading.value = false
+    }
+}
+
+const submitTransactionGRPC = async () => {
+    loading.value = true
+    try {
+        const response = await axios.post('http://localhost:8080/api/v1/transactions/grpc', {
+            transaction_id: form.value.transaction_id,
+            account_number: form.value.account_number,
+            amount: parseFloat(form.value.amount),
+            currency: form.value.currency,
+            transaction_type: form.value.transaction_type,
+            counterparty_account: form.value.counterparty_account || null,
+            counterparty_bank: form.value.counterparty_bank || null,
+            counterparty_country: form.value.counterparty_country || null,
+            channel: form.value.channel,
+            user_id: form.value.user_id || null,
+            branch_id: form.value.branch_id || null,
+            timestamp: new Date().toISOString()
+        })
+
+        showNotification('Транзакция отправлена через gRPC и обработана', 'success')
+
+        form.value = {
+            transaction_id: '',
+            account_number: '',
+            amount: '',
+            currency: 'USD',
+            transaction_type: 'transfer',
+            counterparty_account: '',
+            counterparty_bank: '',
+            counterparty_country: '',
+            channel: 'online',
+            user_id: '',
+            branch_id: ''
+        }
+
+        setTimeout(() => loadTransactions(), 2000)
+    } catch (error) {
+        showNotification('Ошибка при отправке через gRPC: ' + (error.response?.data?.error || error.message), 'error')
     } finally {
         loading.value = false
     }

@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"database/sql"
+	"time"
 
 	"bank-aml-system/internal/models"
 )
@@ -33,6 +34,7 @@ func (s *SQLiteStorage) GetTransactionByProcessingID(processingID string) (*mode
 }
 
 // GetFullTransactionByProcessingID получает полную транзакцию со всеми полями
+// С retry логикой для обработки race condition (транзакция может еще не сохраниться)
 func (s *SQLiteStorage) GetFullTransactionByProcessingID(processingID string) (*models.Transaction, error) {
 	query := `
 		SELECT transaction_id, account_number, amount, currency, transaction_type,
@@ -42,21 +44,47 @@ func (s *SQLiteStorage) GetFullTransactionByProcessingID(processingID string) (*
 		WHERE processing_id = ?
 	`
 
-	var tx models.Transaction
-	err := s.DB.QueryRow(query, processingID).Scan(
-		&tx.TransactionID, &tx.AccountNumber, &tx.Amount, &tx.Currency, &tx.TransactionType,
-		&tx.CounterpartyAccount, &tx.CounterpartyBank, &tx.CounterpartyCountry,
-		&tx.Timestamp, &tx.Channel, &tx.UserID, &tx.BranchID,
-	)
+	var tx *models.Transaction
+	var lastErr error
 
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
+	// Retry для случая, когда транзакция еще не сохранилась (race condition)
+	for i := 0; i < 5; i++ {
+		var result models.Transaction
+		err := s.DB.QueryRow(query, processingID).Scan(
+			&result.TransactionID, &result.AccountNumber, &result.Amount, &result.Currency, &result.TransactionType,
+			&result.CounterpartyAccount, &result.CounterpartyBank, &result.CounterpartyCountry,
+			&result.Timestamp, &result.Channel, &result.UserID, &result.BranchID,
+		)
+
+		if err == sql.ErrNoRows {
+			// Транзакция еще не найдена - возможно race condition
+			if i < 4 { // Не последняя попытка
+				time.Sleep(time.Duration(i+1) * 50 * time.Millisecond) // Экспоненциальная задержка
+				continue
+			}
+			return nil, nil // После всех попыток возвращаем nil
+		}
+
+		if err != nil {
+			// Если ошибка блокировки, повторяем
+			if isRetryableError(err) && i < 4 {
+				lastErr = err
+				time.Sleep(time.Duration(i+1) * 50 * time.Millisecond)
+				continue
+			}
+			return nil, err
+		}
+
+		// Успешно получили транзакцию
+		tx = &result
+		break
 	}
 
-	return &tx, nil
+	if tx == nil && lastErr != nil {
+		return nil, lastErr
+	}
+
+	return tx, nil
 }
 
 // GetAllTransactions получает все транзакции из БД

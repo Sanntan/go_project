@@ -32,8 +32,10 @@ func NewConnection(cfg *config.Config) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// Формируем DSN для SQLite
-	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_foreign_keys=1", dbPath)
+	// Формируем DSN для SQLite с настройками для конкурентного доступа
+	// _busy_timeout - время ожидания в миллисекундах при блокировке БД
+	// _journal_mode=WAL - Write-Ahead Logging для лучшей конкурентности
+	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_foreign_keys=1&_busy_timeout=5000", dbPath)
 
 	log.Printf("Connecting to SQLite: path=%s", dbPath)
 
@@ -47,8 +49,9 @@ func NewConnection(cfg *config.Config) (*SQLiteStorage, error) {
 	}
 
 	// Настройка пула соединений
-	db.SetMaxOpenConns(1) // SQLite поддерживает только одно соединение для записи
-	db.SetMaxIdleConns(1)
+	// С WAL режимом можно использовать больше соединений для чтения
+	db.SetMaxOpenConns(5) // Увеличено для лучшей конкурентности с WAL
+	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	storage := &SQLiteStorage{DB: db}

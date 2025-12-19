@@ -37,7 +37,7 @@ func setupTestRouter(handlers *Handlers) *gin.Engine {
 
 func TestHandlers_HandleTransaction_Success(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	reqBody := models.ProcessingRequest{
@@ -82,7 +82,7 @@ func TestHandlers_HandleTransaction_Success(t *testing.T) {
 
 func TestHandlers_HandleTransaction_InvalidJSON(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	req := httptest.NewRequest("POST", "/api/v1/transactions", bytes.NewBufferString("invalid json"))
@@ -103,7 +103,7 @@ func TestHandlers_HandleTransaction_InvalidJSON(t *testing.T) {
 
 func TestHandlers_HandleTransaction_ServiceError(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	reqBody := models.ProcessingRequest{
@@ -141,7 +141,7 @@ func TestHandlers_HandleTransaction_ServiceError(t *testing.T) {
 
 func TestHandlers_GetTransactionStatus_Success(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	processingID := "proc_test_123"
@@ -178,7 +178,7 @@ func TestHandlers_GetTransactionStatus_Success(t *testing.T) {
 
 func TestHandlers_GetTransactionStatus_NotFound(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	processingID := "proc_not_found"
@@ -202,7 +202,7 @@ func TestHandlers_GetTransactionStatus_NotFound(t *testing.T) {
 
 func TestHandlers_GetTransactionStatus_ServiceError(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	processingID := "proc_error"
@@ -226,7 +226,7 @@ func TestHandlers_GetTransactionStatus_ServiceError(t *testing.T) {
 
 func TestHandlers_GetAllTransactions_Success(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	transactions := []*models.TransactionStatusResponse{
@@ -261,7 +261,7 @@ func TestHandlers_GetAllTransactions_Success(t *testing.T) {
 
 func TestHandlers_GetAllTransactions_WithLimit(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	transactions := []*models.TransactionStatusResponse{}
@@ -279,7 +279,7 @@ func TestHandlers_GetAllTransactions_WithLimit(t *testing.T) {
 
 func TestHandlers_GetAllTransactions_ServiceError(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	mockService.On("GetAllTransactions", 100).Return(nil, errors.New("database error"))
@@ -301,7 +301,7 @@ func TestHandlers_GetAllTransactions_ServiceError(t *testing.T) {
 
 func TestHandlers_ClearAllTransactions_Success(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	mockService.On("ClearAllTransactions").Return(nil)
@@ -324,7 +324,7 @@ func TestHandlers_ClearAllTransactions_Success(t *testing.T) {
 
 func TestHandlers_ClearAllTransactions_ServiceError(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	mockService.On("ClearAllTransactions").Return(errors.New("database error"))
@@ -346,7 +346,7 @@ func TestHandlers_ClearAllTransactions_ServiceError(t *testing.T) {
 
 func TestHandlers_GenerateRandomTransaction(t *testing.T) {
 	mockService := new(servicemocks.MockTransactionService)
-	handlers := NewHandlers(mockService)
+	handlers := NewHandlers(mockService, nil) // nil для grpcClient в тестах
 	router := setupTestRouter(handlers)
 
 	req := httptest.NewRequest("GET", "/api/v1/transactions/generate", nil)

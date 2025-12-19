@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  models.ProcessingRequest:
+  bank-aml-system_internal_models.ProcessingRequest:
     properties:
       account_number:
         type: string
@@ -33,7 +33,7 @@ definitions:
     - transaction_id
     - transaction_type
     type: object
-  models.ProcessingResponse:
+  bank-aml-system_internal_models.ProcessingResponse:
     properties:
       message:
         type: string
@@ -42,7 +42,7 @@ definitions:
       status:
         type: string
     type: object
-  models.TransactionStatusResponse:
+  bank-aml-system_internal_models.TransactionStatusResponse:
     properties:
       amount:
         type: number
@@ -67,18 +67,33 @@ definitions:
     type: object
 host: localhost:8080
 info:
-  contact:
-    email: support@bank-aml.com
-    name: API Support
+  contact: {}
   description: Система противодействия отмыванию денег и мошенничеству
-  license:
-    name: Apache 2.0
-    url: http://www.apache.org/licenses/LICENSE-2.0.html
-  termsOfService: http://swagger.io/terms/
   title: Bank AML System API
   version: "1.0"
 paths:
   /transactions:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет все транзакции из базы данных
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Транзакции очищены
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Очистить все транзакции
+      tags:
+      - transactions
     get:
       consumes:
       - application/json
@@ -93,12 +108,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Список транзакций
           schema:
-            additionalProperties:
-              items:
-                $ref: '#/definitions/models.TransactionStatusResponse'
-              type: array
+            additionalProperties: true
             type: object
         "500":
           description: Internal Server Error
@@ -112,21 +124,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Принимает транзакцию и отправляет её на анализ рисков
+      description: Принимает транзакцию и отправляет её на анализ рисков через REST
+        API. Транзакция сохраняется в БД и отправляется в Kafka для асинхронной обработки
+        fraud-сервисом.
       parameters:
       - description: Данные транзакции
         in: body
         name: transaction
         required: true
         schema:
-          $ref: '#/definitions/models.ProcessingRequest'
+          $ref: '#/definitions/bank-aml-system_internal_models.ProcessingRequest'
       produces:
       - application/json
       responses:
         "201":
-          description: Created
+          description: Транзакция принята на обработку
           schema:
-            $ref: '#/definitions/models.ProcessingResponse'
+            $ref: '#/definitions/bank-aml-system_internal_models.ProcessingResponse'
         "400":
           description: Bad Request
           schema:
@@ -139,14 +153,14 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Отправить транзакцию на анализ
+      summary: Отправить транзакцию на анализ (REST)
       tags:
       - transactions
   /transactions/{processing_id}:
     get:
       consumes:
       - application/json
-      description: Возвращает детальную информацию о транзакции и её анализе
+      description: Возвращает детальную информацию о транзакции и её анализе рисков
       parameters:
       - description: ID обработки транзакции
         in: path
@@ -157,9 +171,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Статус транзакции
           schema:
-            $ref: '#/definitions/models.TransactionStatusResponse'
+            $ref: '#/definitions/bank-aml-system_internal_models.TransactionStatusResponse'
         "404":
           description: Not Found
           schema:
@@ -175,6 +189,64 @@ paths:
       summary: Получить статус транзакции
       tags:
       - transactions
-schemes:
-- http
+  /transactions/generate:
+    get:
+      consumes:
+      - application/json
+      description: Генерирует случайную транзакцию для тестирования
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Сгенерированная транзакция
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Сгенерировать случайную транзакцию
+      tags:
+      - transactions
+  /transactions/grpc:
+    post:
+      consumes:
+      - application/json
+      description: Принимает транзакцию и отправляет её на анализ через gRPC-сервис.
+        Транзакция автоматически сохраняется в БД, отправляется в Kafka, обрабатывается
+        fraud-сервисом и возвращается с результатами анализа рисков (risk_score, risk_level,
+        flags).
+      parameters:
+      - description: Данные транзакции
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/bank-aml-system_internal_models.ProcessingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Транзакция успешно обработана через gRPC
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request - неверный формат данных
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error - ошибка обработки
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable - gRPC клиент недоступен
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Отправить транзакцию через gRPC
+      tags:
+      - transactions
 swagger: "2.0"

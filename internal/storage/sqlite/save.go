@@ -1,6 +1,8 @@
 package sqlite
 
 import (
+	"time"
+
 	"bank-aml-system/internal/models"
 )
 
@@ -14,13 +16,14 @@ func (s *SQLiteStorage) SaveTransaction(processingID string, tx *models.Transact
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_review')
 	`
 
-	_, err := s.DB.Exec(
-		query,
-		processingID, tx.TransactionID, tx.AccountNumber, tx.Amount, tx.Currency,
-		tx.TransactionType, tx.CounterpartyAccount, tx.CounterpartyBank,
-		tx.CounterpartyCountry, tx.Timestamp, tx.Channel, tx.UserID, tx.BranchID,
-	)
-
-	return err
+	return retryOperation(func() error {
+		_, err := s.DB.Exec(
+			query,
+			processingID, tx.TransactionID, tx.AccountNumber, tx.Amount, tx.Currency,
+			tx.TransactionType, tx.CounterpartyAccount, tx.CounterpartyBank,
+			tx.CounterpartyCountry, tx.Timestamp, tx.Channel, tx.UserID, tx.BranchID,
+		)
+		return err
+	}, 3, 50*time.Millisecond)
 }
 
